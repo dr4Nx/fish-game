@@ -39,7 +39,10 @@ class GameEngine:
         _system(room, "Deal completed", {})
 
         room.phase = room.phase.PLAYING
-        room.current_asker = self._rng.choice([seat.index for seat in room.seats if seat.kind == SeatKind.HUMAN])
+        starters = [seat.index for seat in room.seats if seat.kind != SeatKind.EMPTY]
+        if not starters:
+            raise AssertionError("PHASE_INVALID")
+        room.current_asker = self._rng.choice(starters)
         _system(room, "Game started", {"startingSeat": room.current_asker})
 
         self.assert_invariants(room)
@@ -59,7 +62,7 @@ class GameEngine:
             return False
         if not room.hands.get(target):
             return False
-        pair = tuple(sorted((asker, target)))
+        pair = (min(asker, target), max(asker, target))
         if pair in room.disjoint_pairs:
             return False
         if _team_for_seat(room, asker) == _team_for_seat(room, target):

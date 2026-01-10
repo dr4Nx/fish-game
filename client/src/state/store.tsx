@@ -121,8 +121,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         let name = displayName.trim();
         if (!name) {
           name = `Player-${playerKey.slice(0, 4)}`;
-          setDisplayName(name);
-          persistDisplayName(name);
         }
         const hello: ClientMessage = {
           type: "hello",
