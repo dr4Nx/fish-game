@@ -26,8 +26,13 @@ export type RoomCreatedMessage = {
   roomCode: string;
 };
 
+export type LobbyListMessage = {
+  type: "lobby_list";
+  lobbies: Array<{ roomCode: string; playerCount: number; players: string[] }>;
+};
+
 export type RoomPublicState = {
-  phase: "LOBBY" | "TEAM_DRAW" | "DEAL" | "PLAYING" | "FINISHED";
+  phase: "LOBBY" | "DEAL" | "PLAYING" | "FINISHED";
   seats: Array<{
     seat: number;
     kind: "human" | "bot" | "empty";
@@ -37,13 +42,13 @@ export type RoomPublicState = {
     botId: string | null;
   }>;
   teams: { A: number[]; B: number[] };
-  teamDrawCards: Record<string, string>;
   hostSeat: number;
   currentAskerSeat: number;
   disjointPairs: Array<{ a: number; b: number }>;
   handCounts: Record<string, number>;
   capturedSets: { A: string[]; B: string[] };
   history: HistoryEntry[];
+  settings: { isPublic: boolean; historyLength: number };
 };
 
 export type RoomPrivateState = {
@@ -55,7 +60,7 @@ export type RoomPrivateState = {
 export type HistoryEntry = {
   id: string;
   ts: string;
-  kind: "SYSTEM" | "ASK" | "CLAIM" | "DISJOINT";
+  kind: "SYSTEM" | "ASK" | "CLAIM" | "DISJOINT" | "CHAT";
   payload: Record<string, unknown>;
 };
 
@@ -72,6 +77,22 @@ export type ClientMessage =
   | { type: "leave_room"; requestId: string; roomCode: string }
   | { type: "reset_room"; requestId: string; roomCode: string }
   | { type: "start_game"; requestId: string; roomCode: string }
+  | { type: "list_lobbies"; requestId: string }
+  | {
+      type: "update_settings";
+      requestId: string;
+      roomCode: string;
+      isPublic: boolean;
+      historyLength: number;
+    }
+  | {
+      type: "set_team";
+      requestId: string;
+      roomCode: string;
+      teamId: "A" | "B";
+    }
+  | { type: "randomize_teams"; requestId: string; roomCode: string }
+  | { type: "unassign_team"; requestId: string; roomCode: string }
   | {
       type: "action_ask";
       requestId: string;
@@ -91,11 +112,18 @@ export type ClientMessage =
       requestId: string;
       roomCode: string;
       targetSeat: number;
+    }
+  | {
+      type: "chat";
+      requestId: string;
+      roomCode: string;
+      message: string;
     };
 
 export type ServerMessage =
   | RoomStateMessage
   | RoomCreatedMessage
+  | LobbyListMessage
   | ErrorMessage
   | ToastMessage;
 
@@ -122,8 +150,8 @@ export class WsClient {
         return;
       }
       this.ws = ws;
-      this.flush();
       this.onOpen?.();
+      this.flush();
     };
     ws.onmessage = (event) => {
       if (currentId !== this.connectId) {

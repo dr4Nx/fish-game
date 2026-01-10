@@ -20,9 +20,13 @@ export function RecentActionsPanel({ publicState, seatName }: Props) {
     return -1;
   })();
 
+  const historyLength = publicState.settings?.historyLength ?? 3;
   const recentActions = publicState.history
-    .filter((entry, index) => index > lastFinishIndex && (entry.kind === "ASK" || entry.kind === "CLAIM"))
-    .slice(-3)
+    .filter(
+      (entry, index) =>
+        index > lastFinishIndex && (entry.kind === "ASK" || entry.kind === "CLAIM" || entry.kind === "DISJOINT")
+    )
+    .slice(-historyLength)
     .map((entry) => {
       const payload = entry.payload as Record<string, unknown>;
       if (entry.kind === "ASK") {
@@ -38,6 +42,16 @@ export function RecentActionsPanel({ publicState, seatName }: Props) {
         const result = payload.result as string;
         const awarded = payload.awardedToTeam as string;
         return `${seatName(fromSeat)} claimed ${setId} (${result}), awarded to Team ${awarded}.`;
+      }
+      if (entry.kind === "DISJOINT") {
+        const fromSeat = payload.fromSeat as number;
+        const toSeat = payload.toSeat as number;
+        const result = payload.result as string;
+        const transferred = (payload.transferred as string[]) ?? [];
+        if (result === "INCORRECT" && transferred.length > 0) {
+          return `${seatName(fromSeat)} called disjoint with ${seatName(toSeat)} (${result}). Transferred: ${transferred.join(", ")}.`;
+        }
+        return `${seatName(fromSeat)} called disjoint with ${seatName(toSeat)} (${result}).`;
       }
       return "Unknown action.";
     });

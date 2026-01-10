@@ -33,18 +33,13 @@ class GameEngine:
         self._rng = rng
 
     def start_game(self, room: Room) -> None:
-        room.phase = room.phase.TEAM_DRAW
-        room.team_draw_cards = rules.draw_team_cards(self._rng)
-        room.team_of_seat = rules.assign_teams(room.team_draw_cards)
-        _system(room, "Team draw completed and teams assigned", {"teams": room.team_of_seat})
-
         room.phase = room.phase.DEAL
+        room.team_draw_cards = {}
         room.hands = rules.deal_hands(self._rng)
         _system(room, "Deal completed", {})
 
         room.phase = room.phase.PLAYING
-        highest = max(room.team_draw_cards.items(), key=lambda item: rules.rank_team_draw(item[1]))
-        room.current_asker = highest[0]
+        room.current_asker = self._rng.choice([seat.index for seat in room.seats if seat.kind == SeatKind.HUMAN])
         _system(room, "Game started", {"startingSeat": room.current_asker})
 
         self.assert_invariants(room)

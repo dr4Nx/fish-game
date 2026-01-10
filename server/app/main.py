@@ -15,6 +15,7 @@ _rng = random.Random()
 _registry = RoomRegistry(_rng)
 _connections: Dict[str, Dict[str, WebSocket]] = {}
 _player_rooms: Dict[str, str] = {}
+_lobby_connections: set[WebSocket] = set()
 
 
 async def send_error(ws: WebSocket, request_id: str, code: str, message: str) -> None:
@@ -38,7 +39,27 @@ async def broadcast_room_state(room_code: str) -> None:
             continue
 
 
-_registry.set_update_callback(broadcast_room_state)
+async def send_lobby_list(ws: WebSocket) -> None:
+    await ws.send_json({"type": "lobby_list", "lobbies": _registry.list_public_lobbies()})
+
+
+async def broadcast_lobby_list() -> None:
+    if not _lobby_connections:
+        return
+    payload = {"type": "lobby_list", "lobbies": _registry.list_public_lobbies()}
+    for ws in list(_lobby_connections):
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            _lobby_connections.discard(ws)
+
+
+async def handle_room_update(room_code: str) -> None:
+    await broadcast_room_state(room_code)
+    await broadcast_lobby_list()
+
+
+_registry.set_update_callback(handle_room_update)
 
 
 @app.websocket("/ws")
@@ -62,6 +83,8 @@ async def ws_endpoint(ws: WebSocket) -> None:
         display_name = msg["displayName"]
         player_key_opt = player_key
         display_name_opt = display_name
+        _lobby_connections.add(ws)
+        await send_lobby_list(ws)
         while True:
             raw = await ws.receive_text()
             try:
@@ -81,41 +104,47 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     room_code_opt = room_code
                     _connections.setdefault(room_code, {})[player_key] = ws
                     _player_rooms[player_key] = room_code
+                    _lobby_connections.discard(ws)
                     await ws.send_json({"type": "room_created", "requestId": request_id, "roomCode": room_code})
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                 elif msg_type == "join_room":
                     room_code = msg["roomCode"]
                     room_code_opt = room_code
                     room = _registry.join_room(player_key, display_name, room_code)
                     _connections.setdefault(room_code, {})[player_key] = ws
                     _player_rooms[player_key] = room_code
-                    await broadcast_room_state(room_code)
+                    _lobby_connections.discard(ws)
+                    await handle_room_update(room_code)
                 elif msg_type == "set_name":
-                    if not room_code_opt:
-                        raise AssertionError("NOT_IN_ROOM")
                     display_name = msg["displayName"]
                     display_name_opt = display_name
-                    _registry.set_name(player_key, display_name, room_code_opt)
-                    await broadcast_room_state(room_code_opt)
+                    if room_code_opt:
+                        _registry.set_name(player_key, display_name, room_code_opt)
+                        await handle_room_update(room_code_opt)
                 elif msg_type == "leave_room":
                     room_code = msg["roomCode"]
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.leave_room(player_key, room_code)
-                    await broadcast_room_state(room_code)
+                    _lobby_connections.add(ws)
+                    await handle_room_update(room_code)
+                    _connections.get(room_code, {}).pop(player_key, None)
+                    _player_rooms.pop(player_key, None)
+                    if room_code_opt == room_code:
+                        room_code_opt = None
                 elif msg_type == "reset_room":
                     room_code = msg["roomCode"]
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.reset_room(player_key, room_code)
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                 elif msg_type == "start_game":
                     room_code = msg["roomCode"]
                     room_code_opt = room_code
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.start_game(player_key, room_code)
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                     room = _registry.get_room(room_code)
                     if room:
                         _registry.schedule_bot_turns(room, broadcast_room_state)
@@ -126,7 +155,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.perform_ask(player_key, room_code, msg["targetSeat"], msg["cardId"])
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                     room = _registry.get_room(room_code)
                     if room:
                         _registry.schedule_bot_turns(room, broadcast_room_state)
@@ -137,7 +166,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.perform_claim(player_key, room_code, msg["setId"], msg["assignments"])
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                     room = _registry.get_room(room_code)
                     if room:
                         _registry.schedule_bot_turns(room, broadcast_room_state)
@@ -148,10 +177,49 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.perform_disjoint(player_key, room_code, msg["targetSeat"])
-                    await broadcast_room_state(room_code)
+                    await handle_room_update(room_code)
                     room = _registry.get_room(room_code)
                     if room:
                         _registry.schedule_bot_turns(room, broadcast_room_state)
+                elif msg_type == "chat":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.perform_chat(player_key, room_code, msg["message"])
+                    await handle_room_update(room_code)
+                elif msg_type == "list_lobbies":
+                    await send_lobby_list(ws)
+                elif msg_type == "update_settings":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.update_settings(
+                        player_key, room_code, msg["isPublic"], msg["historyLength"]
+                    )
+                    await handle_room_update(room_code)
+                elif msg_type == "set_team":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.set_team(player_key, room_code, msg["teamId"])
+                    await handle_room_update(room_code)
+                elif msg_type == "randomize_teams":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.randomize_teams(player_key, room_code)
+                    await handle_room_update(room_code)
+                elif msg_type == "unassign_team":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.unassign_team(player_key, room_code)
+                    await handle_room_update(room_code)
                 elif msg_type == "hello":
                     await send_error(ws, request_id, "BAD_MESSAGE", "Hello already received")
             except AssertionError as exc:
@@ -162,10 +230,11 @@ async def ws_endpoint(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         if player_key_opt and room_code_opt:
             _registry.disconnect(player_key_opt, room_code_opt)
-            await broadcast_room_state(room_code_opt)
+            await handle_room_update(room_code_opt)
     except Exception as exc:
         if player_key_opt:
             await send_error(ws, "", "BAD_MESSAGE", f"{exc}")
     finally:
+        _lobby_connections.discard(ws)
         if player_key_opt and room_code_opt:
             _connections.get(room_code_opt, {}).pop(player_key_opt, None)

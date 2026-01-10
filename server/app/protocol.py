@@ -58,6 +58,33 @@ CLIENT_SCHEMAS: Dict[str, Dict[str, str]] = {
         "roomCode": "string",
         "targetSeat": "int",
     },
+    "chat": {
+        "requestId": "string",
+        "roomCode": "string",
+        "message": "string",
+    },
+    "list_lobbies": {
+        "requestId": "string",
+    },
+    "update_settings": {
+        "requestId": "string",
+        "roomCode": "string",
+        "isPublic": "bool",
+        "historyLength": "int",
+    },
+    "set_team": {
+        "requestId": "string",
+        "roomCode": "string",
+        "teamId": "string",
+    },
+    "randomize_teams": {
+        "requestId": "string",
+        "roomCode": "string",
+    },
+    "unassign_team": {
+        "requestId": "string",
+        "roomCode": "string",
+    },
 }
 
 
@@ -91,12 +118,24 @@ def validate_message(msg: Dict[str, Any]) -> Dict[str, Any]:
             raise ProtocolError("BAD_MESSAGE", f"Field {key} must be int")
         if expected == "dict" and not isinstance(value, dict):
             raise ProtocolError("BAD_MESSAGE", f"Field {key} must be object")
+        if expected == "bool" and not isinstance(value, bool):
+            raise ProtocolError("BAD_MESSAGE", f"Field {key} must be boolean")
     if not isinstance(msg.get("requestId"), str):
         raise ProtocolError("BAD_MESSAGE", "requestId required")
     if "roomCode" in msg and not is_valid_room_code(msg["roomCode"]):
         raise ProtocolError("ROOM_NOT_FOUND", "Invalid room code")
     if msg_type in ("hello", "set_name") and not is_valid_display_name(msg["displayName"]):
         raise ProtocolError("NAME_INVALID", "Invalid display name")
+    if msg_type == "chat":
+        message = msg.get("message", "")
+        if not isinstance(message, str):
+            raise ProtocolError("BAD_MESSAGE", "Invalid chat message")
+        trimmed = message.strip()
+        if not trimmed or len(trimmed) > 150:
+            raise ProtocolError("BAD_MESSAGE", "Invalid chat message")
+    if msg_type == "set_team":
+        if msg.get("teamId") not in ("A", "B"):
+            raise ProtocolError("BAD_MESSAGE", "Invalid team")
     return msg
 
 

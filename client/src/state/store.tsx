@@ -4,6 +4,7 @@ import { WsClient } from "../ws/client";
 import type {
   ClientMessage,
   ErrorMessage,
+  LobbyListMessage,
   RoomCreatedMessage,
   RoomPrivateState,
   RoomPublicState,
@@ -22,6 +23,7 @@ export type AppState = {
   toast: ToastMessage | null;
   displayName: string;
   lastExitedRoom: string | null;
+  lobbies: LobbyListMessage["lobbies"];
 };
 
 export type AppActions = {
@@ -29,6 +31,12 @@ export type AppActions = {
   createRoom: () => void;
   joinRoom: (roomCode: string) => void;
   setName: (name: string) => void;
+  sendChat: (roomCode: string, message: string) => void;
+  listLobbies: () => void;
+  updateSettings: (roomCode: string, isPublic: boolean, historyLength: number) => void;
+  setTeam: (roomCode: string, teamId: "A" | "B") => void;
+  randomizeTeams: (roomCode: string) => void;
+  unassignTeam: (roomCode: string) => void;
   startGame: (roomCode: string) => void;
   resetRoom: (roomCode: string) => void;
   ask: (roomCode: string, targetSeat: number, cardId: string) => void;
@@ -58,31 +66,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [displayName, setDisplayName] = useState<string>(getDisplayName());
   const [lastExitedRoom, setLastExitedRoom] = useState<string | null>(null);
+  const [lobbies, setLobbies] = useState<LobbyListMessage["lobbies"]>([]);
   const clientRef = useRef<WsClient | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
 
-  const handleServerMessage = useCallback((msg: RoomStateMessage | RoomCreatedMessage | ErrorMessage | ToastMessage) => {
-    if (msg.type === "room_state") {
-      setRoomCode(msg.roomCode);
-      setLastExitedRoom(null);
-      setPublicState(msg.public);
-      setPrivateState(msg.private);
-      setLastError(null);
-      return;
-    }
-    if (msg.type === "room_created") {
-      setRoomCode(msg.roomCode);
-      setLastExitedRoom(null);
-      return;
-    }
-    if (msg.type === "error") {
-      setLastError(msg);
-      return;
-    }
-    if (msg.type === "toast") {
-      setToast(msg);
-    }
-  }, []);
+  const handleServerMessage = useCallback(
+    (msg: RoomStateMessage | RoomCreatedMessage | ErrorMessage | ToastMessage | LobbyListMessage) => {
+      if (msg.type === "room_state") {
+        setRoomCode(msg.roomCode);
+        setLastExitedRoom(null);
+        setPublicState(msg.public);
+        setPrivateState(msg.private);
+        setLastError(null);
+        return;
+      }
+      if (msg.type === "room_created") {
+        setRoomCode(msg.roomCode);
+        setLastExitedRoom(null);
+        return;
+      }
+      if (msg.type === "lobby_list") {
+        setLobbies(msg.lobbies);
+        return;
+      }
+      if (msg.type === "error") {
+        setLastError(msg);
+        return;
+      }
+      if (msg.type === "toast") {
+        setToast(msg);
+      }
+    },
+    []
+  );
 
   const connect = useCallback(() => {
     if (status !== "disconnected") {
@@ -132,11 +148,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createRoom = useCallback(() => {
     setLastExitedRoom(null);
-    send({ type: "create_room", requestId: newRequestId() });
     const name = displayName.trim();
     if (name) {
       send({ type: "set_name", requestId: newRequestId(), displayName: name });
     }
+    send({ type: "create_room", requestId: newRequestId() });
   }, [displayName, send]);
 
   const joinRoom = useCallback(
@@ -151,11 +167,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setLastExitedRoom(null);
-      send({ type: "join_room", requestId: newRequestId(), roomCode: code });
       const name = displayName.trim();
       if (name) {
         send({ type: "set_name", requestId: newRequestId(), displayName: name });
       }
+      send({ type: "join_room", requestId: newRequestId(), roomCode: code });
     },
     [displayName, send]
   );
@@ -164,11 +180,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (name: string) => {
       setDisplayName(name);
       persistDisplayName(name);
-      if (roomCode) {
-        send({ type: "set_name", requestId: newRequestId(), displayName: name });
-      }
+      send({ type: "set_name", requestId: newRequestId(), displayName: name });
     },
-    [roomCode, send]
+    [send]
+  );
+
+  const sendChat = useCallback(
+    (code: string, message: string) => {
+      send({ type: "chat", requestId: newRequestId(), roomCode: code, message });
+    },
+    [send]
+  );
+
+  const listLobbies = useCallback(() => {
+    send({ type: "list_lobbies", requestId: newRequestId() });
+  }, [send]);
+
+  const updateSettings = useCallback(
+    (code: string, isPublic: boolean, historyLength: number) => {
+      send({
+        type: "update_settings",
+        requestId: newRequestId(),
+        roomCode: code,
+        isPublic,
+        historyLength,
+      });
+    },
+    [send]
+  );
+
+  const setTeam = useCallback(
+    (code: string, teamId: "A" | "B") => {
+      send({ type: "set_team", requestId: newRequestId(), roomCode: code, teamId });
+    },
+    [send]
+  );
+
+  const randomizeTeams = useCallback(
+    (code: string) => {
+      send({ type: "randomize_teams", requestId: newRequestId(), roomCode: code });
+    },
+    [send]
+  );
+
+  const unassignTeam = useCallback(
+    (code: string) => {
+      send({ type: "unassign_team", requestId: newRequestId(), roomCode: code });
+    },
+    [send]
   );
 
   const startGame = useCallback(
@@ -231,6 +290,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast,
     displayName,
     lastExitedRoom,
+    lobbies,
   };
 
   const actions: AppActions = {
@@ -238,6 +298,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     createRoom,
     joinRoom,
     setName,
+    sendChat,
+    listLobbies,
+    updateSettings,
+    setTeam,
+    randomizeTeams,
+    unassignTeam,
     startGame,
     resetRoom,
     ask,

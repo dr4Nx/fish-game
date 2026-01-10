@@ -10,6 +10,7 @@ import { CapturedSetsPanel } from "./room/CapturedSetsPanel";
 import { RecentActionsPanel } from "./room/RecentActionsPanel";
 import { JoinsDisconnectsPanel } from "./room/JoinsDisconnectsPanel";
 import { DebugPanel } from "./room/DebugPanel";
+import { SettingsPanel } from "./room/SettingsPanel";
 
 export function RoomView({ roomCode }: { roomCode: string }) {
   const { state, actions } = useAppState();
@@ -48,34 +49,76 @@ export function RoomView({ roomCode }: { roomCode: string }) {
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ height: "100vh", display: "flex", boxSizing: "border-box" }}>
+      <div style={{ flex: 1, padding: 24 }}>
       <RoomHeader roomCode={roomCode} publicState={publicState} privateState={privateState} />
 
       {publicState.phase === "LOBBY" && (
         <div style={{ marginBottom: 16 }}>
-          <button disabled={publicState.hostSeat !== privateState.yourSeat} onClick={() => actions.startGame(roomCode)}>
+          {(() => {
+            const humanSeats = publicState.seats.filter((seat) => seat.kind === "human");
+            const assigned = humanSeats.every(
+              (seat) => publicState.teams.A.includes(seat.seat) || publicState.teams.B.includes(seat.seat)
+            );
+            const canStart =
+              publicState.hostSeat === privateState.yourSeat &&
+              assigned &&
+              humanSeats.length > 0 &&
+              publicState.teams.A.length <= 3 &&
+              publicState.teams.B.length <= 3;
+            return (
+          <button
+              disabled={!canStart}
+              onClick={() => actions.startGame(roomCode)}
+          >
             Start game (host only)
           </button>
+            );
+          })()}
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-        <SeatsPanel publicState={publicState} privateState={privateState} nowMs={nowMs} />
-        {publicState.phase !== "LOBBY" && publicState.phase !== "FINISHED" && (
-          <HandPanel privateState={privateState} />
-        )}
-        {publicState.phase !== "LOBBY" && publicState.phase !== "FINISHED" && (
-          <>
-            <AskPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
-            <DisjointPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
-            <ClaimPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
-          </>
-        )}
-        {publicState.phase !== "LOBBY" && <CapturedSetsPanel publicState={publicState} />}
-        <RecentActionsPanel publicState={publicState} seatName={seatName} />
-        <JoinsDisconnectsPanel publicState={publicState} seatName={seatName} />
-        <DebugPanel publicState={publicState} />
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          }}
+        >
+          <SeatsPanel roomCode={roomCode} publicState={publicState} privateState={privateState} nowMs={nowMs} />
+          {publicState.phase === "LOBBY" && (
+            <SettingsPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
+          )}
+          {publicState.phase !== "LOBBY" && publicState.phase !== "FINISHED" && (
+            <HandPanel privateState={privateState} />
+          )}
+          {publicState.phase !== "LOBBY" && publicState.phase !== "FINISHED" && (
+            <>
+              <AskPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
+              <DisjointPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
+              <ClaimPanel roomCode={roomCode} publicState={publicState} privateState={privateState} />
+            </>
+          )}
+          {publicState.phase !== "LOBBY" && <CapturedSetsPanel publicState={publicState} />}
+          <RecentActionsPanel publicState={publicState} seatName={seatName} />
+          <DebugPanel publicState={publicState} />
+        </div>
       </div>
+      <aside
+        style={{
+          width: 320,
+          borderLeft: "1px solid #e5e7eb",
+          padding: 16,
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          minHeight: 0,
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        <JoinsDisconnectsPanel roomCode={roomCode} publicState={publicState} seatName={seatName} />
+      </aside>
     </div>
   );
 }

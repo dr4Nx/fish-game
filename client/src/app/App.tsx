@@ -44,7 +44,7 @@ function AppShell() {
       return;
     }
     const phase = state.publicState.phase;
-    if (route.view === "home" && (phase === "TEAM_DRAW" || phase === "DEAL" || phase === "PLAYING")) {
+    if (route.view === "home" && (phase === "DEAL" || phase === "PLAYING")) {
       window.location.hash = `#/room/${state.roomCode}`;
     }
   }, [route.view, state.publicState, state.roomCode]);

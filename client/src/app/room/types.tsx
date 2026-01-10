@@ -8,18 +8,19 @@ export type SeatInfo = {
 };
 
 export type RoomPublicState = {
-  phase: "LOBBY" | "TEAM_DRAW" | "DEAL" | "PLAYING" | "FINISHED";
+  phase: "LOBBY" | "DEAL" | "PLAYING" | "FINISHED";
   seats: SeatInfo[];
   teams: { A: number[]; B: number[] };
-  teamDrawCards: Record<string, string>;
   hostSeat: number;
   currentAskerSeat: number;
   disjointPairs: Array<{ a: number; b: number }>;
+  handCounts: Record<string, number>;
   capturedSets: { A: string[]; B: string[] };
+  settings: { isPublic: boolean; historyLength: number };
   history: Array<{
     id: string;
     ts: string;
-    kind: "SYSTEM" | "ASK" | "CLAIM" | "DISJOINT";
+    kind: "SYSTEM" | "ASK" | "CLAIM" | "DISJOINT" | "CHAT";
     payload: Record<string, unknown>;
   }>;
 };

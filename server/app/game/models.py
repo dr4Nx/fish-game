@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Set, Tuple, TypeAlias
 
 class Phase(str, Enum):
     LOBBY = "LOBBY"
-    TEAM_DRAW = "TEAM_DRAW"
     DEAL = "DEAL"
     PLAYING = "PLAYING"
     FINISHED = "FINISHED"
@@ -42,6 +41,8 @@ class Room:
     seats: List[Seat]
     host_seat: Optional[int]
     host_player_key: Optional[str]
+    is_public: bool = False
+    history_length: int = 3
     team_of_seat: Dict[int, TeamId] = field(default_factory=dict)
     team_draw_cards: Dict[int, CardId] = field(default_factory=dict)
     hands: Dict[int, List[CardId]] = field(default_factory=dict)

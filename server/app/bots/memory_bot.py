@@ -78,17 +78,4 @@ class MemoryBot(Bot):
         if legal_asks:
             choice = self._rng.choice(legal_asks)
             return {"type": "action_ask", "targetSeat": choice["targetSeat"], "cardId": choice["cardId"]}
-        for set_id, cards in rules.SET_CARDS.items():
-            if all(card in hand for card in cards):
-                assignments = {card: self._seat for card in cards}
-                return {"type": "action_claim", "setId": set_id, "assignments": assignments}
-        captured = public_state.get("capturedSets", {"A": [], "B": []})
-        teams = public_state.get("teams", {"A": [], "B": []})
-        team_id = "A" if self._seat in teams.get("A", []) else "B"
-        team_seats = teams.get(team_id, [])
-        available_sets = [set_id for set_id in rules.SET_CARDS if set_id not in captured.get("A", []) + captured.get("B", [])]
-        if available_sets and team_seats:
-            set_id = self._rng.choice(available_sets)
-            assignments = {card: self._rng.choice(team_seats) for card in rules.cards_in_set(set_id)}
-            return {"type": "action_claim", "setId": set_id, "assignments": assignments}
-        return {"type": "action_claim", "setId": "LOW_C", "assignments": {card: self._seat for card in rules.cards_in_set("LOW_C")}}
+        return {"type": "action_none"}
