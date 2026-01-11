@@ -121,6 +121,10 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
             const cardCount = publicState.handCounts[String(seat.seat)] ?? 0;
             const pairKey = `${Math.min(seat.seat, yourSeat)}-${Math.max(seat.seat, yourSeat)}`;
             const isDisjoint = disjointPairKeys.has(pairKey);
+            const disjointWith = publicState.disjointPairs
+              .filter((pair) => pair.a === seat.seat || pair.b === seat.seat)
+              .map((pair) => (pair.a === seat.seat ? pair.b : pair.a))
+              .map((otherSeat) => seatName(otherSeat));
             const canAsk =
               isPlaying &&
               seat.seat !== yourSeat &&
@@ -171,6 +175,9 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
                   <div className="player-meta">
                     {metaParts.join(" · ")}
                   </div>
+                </div>
+                <div className="player-disjoint-tooltip">
+                  Disjoint with {disjointWith.length > 0 ? disjointWith.join(", ") : "no one"}
                 </div>
                 {isOpponent && (
                   <div className="player-actions">

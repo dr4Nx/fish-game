@@ -465,6 +465,30 @@ body,
   font-weight: 600;
 }
 
+.player-disjoint-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-width: 180px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: #ffffff;
+  font-size: 11px;
+  color: #475569;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.player-card:hover .player-disjoint-tooltip {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .player-disconnect {
   font-size: 12px;
   color: #b91c1c;
@@ -639,6 +663,30 @@ body,
   font-size: 26px;
   font-weight: 700;
   color: #0f172a;
+}
+
+.room-captured-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.room-captured-set {
+  font-weight: 700;
+}
+
+.room-captured-set.red {
+  color: #b91c1c;
+}
+
+.room-captured-set.dark {
+  color: #0f172a;
+}
+
+.room-captured-set.special {
+  color: #a16207;
 }
 
 .room-hand-panel {
