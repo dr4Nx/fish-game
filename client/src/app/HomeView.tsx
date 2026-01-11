@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "../state/store";
-
-const adjectives = ["Blue", "Swift", "Bright", "Happy", "Lucky", "Mighty", "Quiet", "Brave", "Clever", "Sunny"];
-const nouns = ["Unicorn", "Falcon", "Otter", "Tiger", "Comet", "Dolphin", "Panda", "Fox", "Lion", "Whale"];
-
-const pickRandomName = () => {
-  return (
-    adjectives[Math.floor(Math.random() * adjectives.length)] +
-    nouns[Math.floor(Math.random() * nouns.length)] +
-    String(Math.floor(Math.random() * 10))
-  );
-};
+import { formatDisplayName, getRandomName } from "./nameUtils";
+import "./HomeView.css";
 
 const statusConfig = {
   connected: { label: "Connected", color: "#16a34a" },
@@ -69,66 +60,8 @@ export function HomeView() {
     });
   }, [state.lobbies]);
 
-  const rootStyle = {
-    minHeight: "100vh",
-    padding: "32px 20px 80px",
-    background: "linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)",
-    color: "#0f172a",
-    fontFamily: '"Avenir Next", "Segoe UI", "Helvetica Neue", "Arial", sans-serif',
-    boxSizing: "border-box",
-  } as React.CSSProperties;
-
   return (
-    <div style={rootStyle}>
-      <style>
-        {`
-          html, body, #root {
-            margin: 0;
-            padding: 0;
-            background: #f1f5f9;
-          }
-          .home-btn {
-            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-            cursor: pointer;
-            filter: drop-shadow(0 0 0 rgba(96, 165, 250, 0));
-            font-family: inherit;
-            font-weight: 500;
-          }
-          .home-btn:hover:enabled {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12), 0 0 14px rgba(96, 165, 250, 0.35);
-            filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.35));
-          }
-          .home-btn:active:enabled {
-            transform: translateY(0);
-            box-shadow: 0 4px 8px rgba(15, 23, 42, 0.12), 0 0 10px rgba(96, 165, 250, 0.3);
-            filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.3));
-          }
-          .home-btn:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 0 14px rgba(96, 165, 250, 0.35);
-            filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.35));
-          }
-          .home-btn:disabled {
-            cursor: not-allowed;
-          }
-          .home-input {
-            transition: box-shadow 0.15s ease, border-color 0.15s ease;
-            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
-            outline: none;
-            font-family: inherit;
-            font-weight: 500;
-          }
-          .home-input:hover {
-            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18), 0 0 10px rgba(96, 165, 250, 0.2);
-          }
-          .home-input:focus {
-            border-color: rgba(30, 41, 59, 0.95);
-            box-shadow: 0 0 0 2px rgba(30, 41, 59, 0.6), inset 0 0 0 1px rgba(15, 23, 42, 0.2);
-            outline: none;
-          }
-        `}
-      </style>
+    <div className="home-root">
       {step === "name" ? (
         <div
           style={{
@@ -199,7 +132,7 @@ export function HomeView() {
               <button
                 className="home-btn"
                 onClick={() => {
-                  const name = pickRandomName();
+                  const name = getRandomName();
                   setNameInput(name);
                   actions.setName(name);
                 }}
@@ -212,13 +145,13 @@ export function HomeView() {
                   color: "#0f172a",
                 }}
               >
-                Random name
+                Random
               </button>
               <button
                 className="home-btn"
                 onClick={() => {
                   const trimmed = nameInput.trim();
-                  const finalName = trimmed || pickRandomName();
+                  const finalName = trimmed || getRandomName();
                   setNameInput(finalName);
                   actions.setName(finalName);
                   actions.clearError();
@@ -238,6 +171,11 @@ export function HomeView() {
                 Continue
               </button>
             </div>
+          </div>
+          <div style={{ marginTop: 14, textAlign: "center" }}>
+            <a href="#/rules" style={{ color: "#2563eb", fontSize: 15, textDecoration: "underline" }}>
+              Rules
+            </a>
           </div>
         </div>
       ) : (
@@ -263,7 +201,7 @@ export function HomeView() {
             </button>
             <div
               style={{
-                fontSize: 22,
+                fontSize: 34,
                 fontWeight: 700,
                 background: "linear-gradient(90deg, #0f172a, #1d4ed8)",
                 WebkitBackgroundClip: "text",
@@ -273,7 +211,7 @@ export function HomeView() {
               Fish Online
             </div>
             <div style={{ marginLeft: "auto", color: "#64748b" }}>
-              Playing as <span style={{ fontWeight: 600 }}>{state.displayName || "Player"}</span>
+              Playing as <span style={{ fontWeight: 600 }}>{formatDisplayName(state.displayName)}</span>
             </div>
           </div>
           <div
@@ -294,7 +232,7 @@ export function HomeView() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     className="home-input"
-                    placeholder="ROOMCODE"
+                    placeholder="e.g., A1B2C3"
                     value={roomInput}
                     onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                     style={{
@@ -413,7 +351,9 @@ export function HomeView() {
                         <span style={{ color: "#64748b" }}>{lobby.playerCount}/6</span>
                       </div>
                       {lobby.players.length > 0 && (
-                        <div style={{ marginTop: 8, color: "#64748b" }}>{lobby.players.join(", ")}</div>
+                        <div style={{ marginTop: 8, color: "#64748b" }}>
+                          {lobby.players.map((name) => formatDisplayName(name)).join(", ")}
+                        </div>
                       )}
                     </div>
                     <button
@@ -457,7 +397,7 @@ export function HomeView() {
           background: "rgba(248, 250, 252, 0.92)",
           borderTop: "1px solid #e2e8f0",
           display: "flex",
-          justifyContent: "center",
+          justifyContent: "space-between",
           alignItems: "center",
           gap: 8,
           fontSize: 14,
@@ -465,16 +405,19 @@ export function HomeView() {
           backdropFilter: "blur(8px)",
         }}
       >
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: status.color,
-            boxShadow: `0 0 8px ${status.color}`,
-          }}
-        />
-        {status.label}
+        <div>© Evan Luo 2026</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: status.color,
+              boxShadow: `0 0 8px ${status.color}`,
+            }}
+          />
+          {status.label}
+        </div>
       </div>
     </div>
   );

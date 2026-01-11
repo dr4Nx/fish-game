@@ -5,42 +5,54 @@ type Props = {
   roomCode: string;
   publicState: RoomPublicState;
   privateState: RoomPrivateState;
+  onCopyRoomCode: () => void;
 };
 
-export function RoomHeader({ roomCode, publicState, privateState }: Props) {
+export function RoomHeader({ roomCode, publicState, privateState, onCopyRoomCode }: Props) {
   const { state, actions } = useAppState();
   const yourSeat = privateState.yourSeat;
-  const yourTeam = privateState.yourTeam;
+  const isHost = publicState.hostSeat === yourSeat;
+
+  const copyRoomCode = () => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(roomCode).then(onCopyRoomCode).catch(() => {});
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = roomCode;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (copied) {
+      onCopyRoomCode();
+    }
+  };
 
   return (
-    <header style={{ marginBottom: 16 }}>
-      <h1>Room {roomCode}</h1>
+    <header className="room-topbar">
       <div>
-        Phase: {publicState.phase} | You: Seat {yourSeat} (Team {yourTeam}) | Host seat: {publicState.hostSeat}
-      </div>
-      <button
-        style={{ marginTop: 8 }}
-        onClick={() => {
-          actions.leaveRoom();
-          window.location.hash = "#/";
-        }}
-        disabled={publicState.phase !== "LOBBY" && publicState.phase !== "FINISHED"}
-      >
-        Exit room
-      </button>
-      {publicState.phase === "FINISHED" && publicState.hostSeat === yourSeat && (
-        <button style={{ marginTop: 8, marginLeft: 8 }} onClick={() => actions.resetRoom(roomCode)}>
-          Return to lobby
-        </button>
-      )}
-      {state.lastError && (
-        <div style={{ marginTop: 8, color: "#b91c1c" }}>
-          Error: {state.lastError.code} — {state.lastError.message}
-          <button style={{ marginLeft: 8 }} onClick={actions.clearError}>
-            Dismiss
+        <div className="room-title">Fish Online</div>
+        <div className="room-subtitle">
+          <span className="room-code-label">Room Code</span>
+          <button type="button" className="room-code-button" onClick={copyRoomCode} title="Copy room code">
+            <span className="room-code room-code-large">{roomCode}</span>
+            <span className="room-code-icon">⧉</span>
           </button>
         </div>
-      )}
+        {state.lastError && (
+          <div className="room-error">
+            Error: {state.lastError.code} — {state.lastError.message}
+            <button className="home-btn room-link" onClick={actions.clearError}>
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="room-top-actions" />
     </header>
   );
 }

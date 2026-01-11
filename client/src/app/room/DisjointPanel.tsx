@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppState } from "../../state/store";
 import type { RoomPrivateState, RoomPublicState } from "./types";
+import { formatDisplayName } from "../nameUtils";
 
 type Props = {
   roomCode: string;
@@ -15,6 +16,10 @@ export function DisjointPanel({ roomCode, publicState, privateState }: Props) {
   const yourSeat = privateState.yourSeat;
   const yourTeam = privateState.yourTeam;
   const opponentSeats = yourTeam === "A" ? publicState.teams.B : publicState.teams.A;
+  const seatLabel = (seatIndex: number) => {
+    const seat = publicState.seats.find((entry) => entry.seat === seatIndex);
+    return formatDisplayName(seat?.displayName ?? (seat?.kind === "bot" ? "Bot" : undefined));
+  };
   const disjointPairKeys = new Set(
     publicState.disjointPairs.map((pair) => `${Math.min(pair.a, pair.b)}-${Math.max(pair.a, pair.b)}`)
   );
@@ -34,10 +39,11 @@ export function DisjointPanel({ roomCode, publicState, privateState }: Props) {
   });
 
   return (
-    <section style={{ border: "1px solid #e5e7eb", padding: 12 }}>
+    <section className="room-card">
       <h3>Disjoint</h3>
-      <label style={{ display: "block", marginTop: 4 }}>Target seat</label>
+      <label style={{ display: "block", marginTop: 4 }}>Target player</label>
       <select
+        className="home-input"
         value={targetSeat}
         onChange={(e) => {
           const value = e.target.value;
@@ -47,11 +53,12 @@ export function DisjointPanel({ roomCode, publicState, privateState }: Props) {
         <option value="">Select</option>
         {availableTargets.map((seat) => (
           <option key={seat} value={seat}>
-            Seat {seat}
+            {seatLabel(seat)}
           </option>
         ))}
       </select>
       <button
+        className="home-btn"
         style={{ display: "block", marginTop: 8 }}
         disabled={targetSeat === ""}
         onClick={() => {

@@ -1,0 +1,76 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  background: #f1f5f9;
+}
+
+.home-root {
+  min-height: 100vh;
+  padding: 32px 20px 80px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", "Arial", sans-serif;
+  box-sizing: border-box;
+}
+
+.home-btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  filter: drop-shadow(0 0 0 rgba(96, 165, 250, 0));
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.home-btn:hover:enabled {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12), 0 0 14px rgba(96, 165, 250, 0.35);
+  filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.35));
+}
+
+.home-btn:active:enabled {
+  transform: translateY(0);
+  box-shadow: 0 4px 8px rgba(15, 23, 42, 0.12), 0 0 10px rgba(96, 165, 250, 0.3);
+  filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.3));
+}
+
+.home-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 0 14px rgba(96, 165, 250, 0.35);
+  filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.35));
+}
+
+.home-btn:disabled {
+  cursor: not-allowed;
+}
+
+.home-input {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+  outline: none;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.home-input:hover {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18), 0 0 10px rgba(96, 165, 250, 0.2);
+}
+
+.home-input:focus {
+  border-color: rgba(30, 41, 59, 0.95);
+  box-shadow: 0 0 0 2px rgba(30, 41, 59, 0.6), inset 0 0 0 1px rgba(15, 23, 42, 0.2);
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

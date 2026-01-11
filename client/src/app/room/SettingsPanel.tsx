@@ -12,28 +12,58 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
   const isHost = publicState.hostSeat === privateState.yourSeat;
   const isPublic = publicState.settings?.isPublic ?? false;
   const historyLength = publicState.settings?.historyLength ?? 3;
+  const teamCounts = {
+    A: publicState.teams.A.length,
+    B: publicState.teams.B.length,
+  };
+  const humanSeats = publicState.seats.filter((seat) => seat.kind === "human");
+  const emptySeats = publicState.seats.filter((seat) => seat.kind === "empty");
+  const unassignedHumans = humanSeats.filter(
+    (seat) => !publicState.teams.A.includes(seat.seat) && !publicState.teams.B.includes(seat.seat)
+  );
+  const hasEmptySeat = publicState.seats.some((seat) => seat.kind === "empty");
+  const canFillBots =
+    isHost &&
+    publicState.phase === "LOBBY" &&
+    emptySeats.length > 0 &&
+    teamCounts.A <= 3 &&
+    teamCounts.B <= 3;
+  const canStart =
+    isHost &&
+    !hasEmptySeat &&
+    unassignedHumans.length === 0 &&
+    publicState.teams.A.length <= 3 &&
+    publicState.teams.B.length <= 3;
 
   return (
-    <section style={{ border: "1px solid #e5e7eb", padding: 12 }}>
+    <section className="room-card room-settings">
       <h3>Settings</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={isPublic}
+      <div className="room-field">
+        <div style={{ marginBottom: 6, fontWeight: 600 }}>Lobby visibility</div>
+        <div className="room-toggle">
+          <button
+            className={`room-toggle-btn ${!isPublic ? "active" : ""}`}
+            onClick={() => actions.updateSettings(roomCode, false, historyLength)}
             disabled={!isHost}
-            onChange={(e) => actions.updateSettings(roomCode, e.target.checked, historyLength)}
-          />
-          Make room public
-        </label>
+          >
+            Private
+          </button>
+          <button
+            className={`room-toggle-btn ${isPublic ? "active" : ""}`}
+            onClick={() => actions.updateSettings(roomCode, true, historyLength)}
+            disabled={!isHost}
+          >
+            Public
+          </button>
+        </div>
       </div>
-      <div>
-        <label style={{ display: "block", marginBottom: 6 }}>Recent actions length</label>
+      <div className="room-field">
+        <label style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Recent actions length</label>
         <select
+          className="home-input room-select"
           value={historyLength}
           disabled={!isHost}
           onChange={(e) => actions.updateSettings(roomCode, isPublic, Number(e.target.value))}
-          style={{ width: "100%", padding: 8 }}
         >
           {Array.from({ length: 20 }, (_, idx) => idx + 1).map((value) => (
             <option key={value} value={value}>
@@ -42,7 +72,42 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
           ))}
         </select>
       </div>
-      {!isHost && <div style={{ marginTop: 8, color: "#6b7280" }}>Only the host can edit settings.</div>}
+      <div className="room-field">
+        <div style={{ marginBottom: 6, fontWeight: 600 }}>Lobby tools</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button
+            className="home-btn room-secondary-btn"
+            onClick={() => actions.randomizeTeams(roomCode)}
+            disabled={!isHost}
+          >
+            Randomize teams
+          </button>
+          <button
+            className="home-btn room-secondary-btn"
+            disabled={!canFillBots}
+            onClick={() => actions.fillBots(roomCode)}
+          >
+            Fill empty seats with bots
+          </button>
+        </div>
+      </div>
+      {!isHost && <div className="room-hint">You can't edit settings.</div>}
+      <div className="room-settings-footer">
+        {isHost ? (
+          <button
+            className="home-btn room-primary-btn"
+            disabled={!canStart}
+            onClick={() => actions.startGame(roomCode)}
+          >
+            Start game
+          </button>
+        ) : (
+          <div className="room-hint">Waiting for the game to start.</div>
+        )}
+        {isHost && !canStart && (
+          <div className="room-hint">Fill all seats and assign teams before starting.</div>
+        )}
+      </div>
     </section>
   );
 }

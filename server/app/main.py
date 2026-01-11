@@ -220,6 +220,41 @@ async def ws_endpoint(ws: WebSocket) -> None:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.unassign_team(player_key, room_code)
                     await handle_room_update(room_code)
+                elif msg_type == "fill_bots":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.fill_bots(player_key, room_code)
+                    await handle_room_update(room_code)
+                elif msg_type == "fill_bot_seat":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.fill_bot_seat(player_key, room_code, msg["seat"])
+                    await handle_room_update(room_code)
+                elif msg_type == "kick_seat":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    kicked_key = _registry.kick_seat(player_key, room_code, msg["seat"])
+                    await handle_room_update(room_code)
+                    if kicked_key:
+                        kicked_ws = _connections.get(room_code, {}).get(kicked_key)
+                        if kicked_ws:
+                            await send_error(kicked_ws, "", "KICKED", "You were removed from the room")
+                            _lobby_connections.add(kicked_ws)
+                        _connections.get(room_code, {}).pop(kicked_key, None)
+                        _player_rooms.pop(kicked_key, None)
+                elif msg_type == "transfer_host":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.transfer_host(player_key, room_code, msg["seat"])
+                    await handle_room_update(room_code)
                 elif msg_type == "hello":
                     await send_error(ws, request_id, "BAD_MESSAGE", "Hello already received")
             except AssertionError as exc:

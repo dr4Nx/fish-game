@@ -1,0 +1,14 @@
+const MAX_NAME_LENGTH = 20;
+const ADJECTIVES = ["Blue", "Swift", "Bright", "Happy", "Lucky", "Mighty", "Quiet", "Brave", "Clever", "Sunny"];
+const NOUNS = ["Unicorn", "Falcon", "Otter", "Tiger", "Comet", "Dolphin", "Panda", "Fox", "Lion", "Whale"];
+
+export const getRandomName = () =>
+  `${ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]}${NOUNS[Math.floor(Math.random() * NOUNS.length)]}${Math.floor(
+    Math.random() * 10
+  )}`;
+
+export const formatDisplayName = (name?: string | null) => {
+  const trimmed = (name ?? "").trim();
+  const base = trimmed.length > 0 ? trimmed : "Player";
+  return base.length > MAX_NAME_LENGTH ? base.slice(0, MAX_NAME_LENGTH) : base;
+};

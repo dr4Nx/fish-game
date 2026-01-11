@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { getDisplayName, getPlayerKey, setDisplayName as persistDisplayName } from "./identity";
 import { WsClient } from "../ws/client";
+import { getRandomName } from "../app/nameUtils";
 import type {
   ClientMessage,
   ErrorMessage,
@@ -37,6 +38,10 @@ export type AppActions = {
   setTeam: (roomCode: string, teamId: "A" | "B") => void;
   randomizeTeams: (roomCode: string) => void;
   unassignTeam: (roomCode: string) => void;
+  fillBots: (roomCode: string) => void;
+  fillBotSeat: (roomCode: string, seat: number) => void;
+  kickSeat: (roomCode: string, seat: number) => void;
+  transferHost: (roomCode: string, seat: number) => void;
   startGame: (roomCode: string) => void;
   resetRoom: (roomCode: string) => void;
   ask: (roomCode: string, targetSeat: number, cardId: string) => void;
@@ -90,6 +95,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === "error") {
+        if (msg.code === "KICKED") {
+          setRoomCode(null);
+          setPublicState(null);
+          setPrivateState(null);
+          setLastExitedRoom(null);
+          window.location.hash = "#/";
+        }
         setLastError(msg);
         return;
       }
@@ -120,7 +132,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         let name = displayName.trim();
         if (!name) {
-          name = `Player-${playerKey.slice(0, 4)}`;
+          const hash = window.location.hash.replace("#", "");
+          if (hash.startsWith("/room/")) {
+            name = getRandomName();
+            setDisplayName(name);
+            persistDisplayName(name);
+          } else {
+            name = `Player-${playerKey.slice(0, 4)}`;
+          }
         }
         const hello: ClientMessage = {
           type: "hello",
@@ -228,6 +247,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [send]
   );
 
+  const fillBots = useCallback(
+    (code: string) => {
+      send({ type: "fill_bots", requestId: newRequestId(), roomCode: code });
+    },
+    [send]
+  );
+
+  const fillBotSeat = useCallback(
+    (code: string, seat: number) => {
+      send({ type: "fill_bot_seat", requestId: newRequestId(), roomCode: code, seat });
+    },
+    [send]
+  );
+
+  const kickSeat = useCallback(
+    (code: string, seat: number) => {
+      send({ type: "kick_seat", requestId: newRequestId(), roomCode: code, seat });
+    },
+    [send]
+  );
+  const transferHost = useCallback(
+    (code: string, seat: number) => {
+      send({ type: "transfer_host", requestId: newRequestId(), roomCode: code, seat });
+    },
+    [send]
+  );
+
   const startGame = useCallback(
     (code: string) => {
       send({ type: "start_game", requestId: newRequestId(), roomCode: code });
@@ -302,6 +348,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTeam,
     randomizeTeams,
     unassignTeam,
+    fillBots,
+    fillBotSeat,
+    kickSeat,
+    transferHost,
     startGame,
     resetRoom,
     ask,

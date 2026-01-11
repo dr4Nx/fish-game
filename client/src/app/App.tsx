@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { AppProvider, useAppState } from "../state/store";
 import { HomeView } from "./HomeView";
 import { RoomView } from "./RoomView";
+import { RulesView } from "./RulesView";
 
 function parseRoute() {
   const hash = window.location.hash.replace("#", "");
   if (hash.startsWith("/room/")) {
     return { view: "room" as const, roomCode: hash.replace("/room/", "").toUpperCase() };
+  }
+  if (hash.startsWith("/rules")) {
+    return { view: "rules" as const, roomCode: "" };
   }
   return { view: "home" as const, roomCode: "" };
 }
@@ -73,6 +77,9 @@ function AppShell() {
 
   if (route.view === "room") {
     return <RoomView roomCode={route.roomCode} />;
+  }
+  if (route.view === "rules") {
+    return <RulesView />;
   }
   return <HomeView />;
 }

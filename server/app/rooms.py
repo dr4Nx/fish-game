@@ -13,6 +13,8 @@ from .game import rules
 from .game import history as history_mod
 from .util.ids import generate_room_code
 
+_BOT_NOUNS = ["Unicorn", "Falcon", "Otter", "Tiger", "Comet", "Dolphin", "Panda", "Fox", "Lion", "Whale"]
+
 class RoomRegistry:
     def __init__(self, rng: random.Random) -> None:
         self._rng = rng
@@ -72,8 +74,22 @@ class RoomRegistry:
             raise AssertionError("NOT_YOUR_TURN")
         if not isinstance(history_length, int) or history_length < 1 or history_length > 20:
             raise AssertionError("BAD_MESSAGE")
+        prev_public = room.is_public
+        prev_length = room.history_length
         room.is_public = bool(is_public)
         room.history_length = history_length
+        if prev_public != room.is_public:
+            status = "public" if room.is_public else "private"
+            self._append_history(room, "SYSTEM", history_mod.system_payload(f"The host made the lobby {status}.", {}))
+        if prev_length != room.history_length:
+            self._append_history(
+                room,
+                "SYSTEM",
+                history_mod.system_payload(
+                    f"The host changed the amount of visible turns to {room.history_length}.",
+                    {},
+                ),
+            )
 
     def get_room(self, room_code: str) -> Optional[Room]:
         return self._rooms.get(room_code)
@@ -87,6 +103,8 @@ class RoomRegistry:
         seat_idx = self._find_seat_for_player(room, player_key)
         if seat_idx is not None:
             seat = room.seats[seat_idx]
+            if seat.player_key == player_key and seat.connected:
+                return room
             was_bot = seat.kind == SeatKind.BOT
             seat.kind = SeatKind.HUMAN
             seat.connected = True
@@ -178,12 +196,27 @@ class RoomRegistry:
         total = min(len(human_seats), 6)
         if total == 0:
             return
-        extra_to_a = self._rng.choice([0, 1]) if total % 2 == 1 else 0
-        team_a_target = min(3, total // 2 + extra_to_a)
-        team_b_target = min(3, total - team_a_target)
-        for idx, seat_idx in enumerate(human_seats[:total]):
-            team_id = "A" if idx < team_a_target else "B"
+        team_counts = {"A": 0, "B": 0}
+        for seat_idx in human_seats[:total]:
+            options = []
+            if team_counts["A"] < 3:
+                options.append("A")
+            if team_counts["B"] < 3:
+                options.append("B")
+            if not options:
+                break
+            team_id = self._rng.choice(options)
+            team_counts[team_id] += 1
             room.team_of_seat[seat_idx] = team_id
+        bot_seats = [seat.index for seat in room.seats if seat.kind == SeatKind.BOT]
+        if bot_seats:
+            needed = {"A": 3 - team_counts["A"], "B": 3 - team_counts["B"]}
+            assignments = ["A"] * max(0, needed["A"]) + ["B"] * max(0, needed["B"])
+            self._rng.shuffle(assignments)
+            assignments = assignments[: len(bot_seats)]
+            self._rng.shuffle(bot_seats)
+            for seat_idx, team_id in zip(bot_seats, assignments):
+                room.team_of_seat[seat_idx] = team_id
 
     def unassign_team(self, player_key: str, room_code: str) -> None:
         room = self._require_room(room_code)
@@ -192,7 +225,7 @@ class RoomRegistry:
         seat_idx = self._require_seat(room, player_key)
         room.team_of_seat.pop(seat_idx, None)
 
-    def start_game(self, player_key: str, room_code: str) -> None:
+    def fill_bots(self, player_key: str, room_code: str) -> None:
         room = self._require_room(room_code)
         if room.phase != Phase.LOBBY:
             raise AssertionError("PHASE_INVALID")
@@ -202,21 +235,154 @@ class RoomRegistry:
         if not human_seats:
             raise AssertionError("PHASE_INVALID")
         team_counts = {"A": 0, "B": 0}
-        for seat in human_seats:
+        for team_id in room.team_of_seat.values():
+            if team_id in team_counts:
+                team_counts[team_id] += 1
+        empty_seats = [seat for seat in room.seats if seat.kind == SeatKind.EMPTY]
+        if not empty_seats:
+            return
+        for seat in empty_seats:
+            choices = []
+            if team_counts["A"] < 3:
+                choices.append("A")
+            if team_counts["B"] < 3:
+                choices.append("B")
+            if not choices:
+                raise AssertionError("PHASE_INVALID")
+            team_id = self._rng.choice(choices)
+            team_counts[team_id] += 1
+            seat.kind = SeatKind.BOT
+            seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
+            seat.display_name = self._bot_display_name(room)
+            seat.connected = False
+            seat.player_key = None
+            seat.reserved_player_key = None
+            room.team_of_seat[seat.index] = team_id
+        self._append_history(
+            room,
+            "SYSTEM",
+            history_mod.system_payload("The host filled empty seats with bots.", {}),
+        )
+
+    def fill_bot_seat(self, player_key: str, room_code: str, seat_idx: int) -> None:
+        room = self._require_room(room_code)
+        if room.phase != Phase.LOBBY:
+            raise AssertionError("PHASE_INVALID")
+        if room.host_player_key != player_key:
+            raise AssertionError("NOT_YOUR_TURN")
+        if seat_idx not in range(6):
+            raise AssertionError("INVALID_TARGET")
+        seat = room.seats[seat_idx]
+        if seat.kind != SeatKind.EMPTY:
+            raise AssertionError("INVALID_TARGET")
+        human_seats = [seat for seat in room.seats if seat.kind == SeatKind.HUMAN]
+        if not human_seats:
+            raise AssertionError("PHASE_INVALID")
+        team_counts = {"A": 0, "B": 0}
+        for team_id in room.team_of_seat.values():
+            if team_id in team_counts:
+                team_counts[team_id] += 1
+        if team_counts["A"] >= 3 and team_counts["B"] >= 3:
+            raise AssertionError("PHASE_INVALID")
+        if team_counts["A"] >= 3:
+            team_id = "B"
+        elif team_counts["B"] >= 3:
+            team_id = "A"
+        else:
+            team_id = self._rng.choice(["A", "B"])
+        seat.kind = SeatKind.BOT
+        seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
+        seat.display_name = self._bot_display_name(room)
+        seat.connected = False
+        seat.player_key = None
+        seat.reserved_player_key = None
+        room.team_of_seat[seat.index] = team_id
+        self._append_history(
+            room,
+            "SYSTEM",
+            history_mod.system_payload(
+                f"The host added a bot to seat {seat.index}.",
+                {"seat": seat.index, "displayName": seat.display_name},
+            ),
+        )
+
+    def kick_seat(self, player_key: str, room_code: str, seat_idx: int) -> Optional[str]:
+        room = self._require_room(room_code)
+        if room.phase not in (Phase.LOBBY, Phase.FINISHED):
+            raise AssertionError("PHASE_INVALID")
+        if room.host_player_key != player_key:
+            raise AssertionError("NOT_YOUR_TURN")
+        if seat_idx not in range(6):
+            raise AssertionError("INVALID_TARGET")
+        if room.host_seat == seat_idx:
+            raise AssertionError("INVALID_TARGET")
+        seat = room.seats[seat_idx]
+        if seat.kind == SeatKind.EMPTY:
+            raise AssertionError("INVALID_TARGET")
+        kicked_player_key = seat.player_key or seat.reserved_player_key
+        display_name = seat.display_name
+        seat.kind = SeatKind.EMPTY
+        seat.connected = False
+        seat.player_key = None
+        seat.display_name = None
+        seat.bot_id = None
+        seat.reserved_player_key = None
+        room.team_of_seat.pop(seat_idx, None)
+        self._cancel_reclaim(room_code, seat_idx)
+        self._append_history(
+            room,
+            "SYSTEM",
+            history_mod.system_payload(
+                "Seat kicked by host",
+                {"seat": seat_idx, "displayName": display_name},
+            ),
+        )
+        if kicked_player_key == room.host_player_key:
+            self._transfer_host(room)
+        if not self._room_has_humans(room):
+            self._delete_room(room_code)
+        return kicked_player_key
+
+    def transfer_host(self, player_key: str, room_code: str, seat_idx: int) -> None:
+        room = self._require_room(room_code)
+        if room.phase != Phase.LOBBY:
+            raise AssertionError("PHASE_INVALID")
+        if room.host_player_key != player_key:
+            raise AssertionError("NOT_YOUR_TURN")
+        if seat_idx not in range(6):
+            raise AssertionError("INVALID_TARGET")
+        if room.host_seat == seat_idx:
+            return
+        seat = room.seats[seat_idx]
+        if seat.kind != SeatKind.HUMAN or not seat.player_key:
+            raise AssertionError("INVALID_TARGET")
+        room.host_seat = seat_idx
+        room.host_player_key = seat.player_key
+        self._append_history(
+            room,
+            "SYSTEM",
+            history_mod.system_payload(
+                "Host transferred",
+                {"seat": seat_idx, "displayName": seat.display_name},
+            ),
+        )
+
+    def start_game(self, player_key: str, room_code: str) -> None:
+        room = self._require_room(room_code)
+        if room.phase != Phase.LOBBY:
+            raise AssertionError("PHASE_INVALID")
+        if room.host_player_key != player_key:
+            raise AssertionError("NOT_YOUR_TURN")
+        if any(seat.kind == SeatKind.EMPTY for seat in room.seats):
+            raise AssertionError("PHASE_INVALID")
+        team_counts = {"A": 0, "B": 0}
+        for seat in room.seats:
             team_id = room.team_of_seat.get(seat.index)
             if team_id not in ("A", "B"):
                 raise AssertionError("PHASE_INVALID")
             team_counts[team_id] += 1
-        if team_counts["A"] > 3 or team_counts["B"] > 3:
+        if team_counts["A"] != 3 or team_counts["B"] != 3:
             raise AssertionError("PHASE_INVALID")
-        empty_seats = [seat for seat in room.seats if seat.kind == SeatKind.EMPTY]
-        needed = {"A": 3 - team_counts["A"], "B": 3 - team_counts["B"]}
-        if needed["A"] < 0 or needed["B"] < 0:
-            raise AssertionError("PHASE_INVALID")
-        if len(empty_seats) != needed["A"] + needed["B"]:
-            raise AssertionError("PHASE_INVALID")
-        if empty_seats:
-            self._fill_bots(room, needed)
         self._engine.start_game(room)
 
     def leave_room(self, player_key: str, room_code: str) -> None:
@@ -346,9 +512,8 @@ class RoomRegistry:
             if transferred:
                 room.hands[asker] = remaining
                 room.hands.setdefault(target, []).extend(transferred)
-        if correct:
-            pair = (min(asker, target), max(asker, target))
-            room.disjoint_pairs.add(pair)
+        pair = (min(asker, target), max(asker, target))
+        room.disjoint_pairs.add(pair)
         payload: Dict[str, object] = {
             "fromSeat": asker,
             "toSeat": target,
@@ -399,8 +564,6 @@ class RoomRegistry:
         )
         task = asyncio.create_task(self._reclaim_timeout(room, seat_idx, player_key))
         self._reclaim_tasks[room_code][seat_idx] = task
-        if not self._room_has_humans(room):
-            self._delete_room(room_code)
 
     async def handle_bot_turns(self, room: Room, on_update) -> None:
         while room.phase == Phase.PLAYING:
@@ -504,7 +667,7 @@ class RoomRegistry:
         for seat, team_id in zip(empty_seats, assignments):
             seat.kind = SeatKind.BOT
             seat.bot_id = default_bot
-            seat.display_name = f"Bot-{seat.index}"
+            seat.display_name = self._bot_display_name(room)
             seat.connected = False
             seat.player_key = None
             seat.reserved_player_key = None
@@ -517,6 +680,11 @@ class RoomRegistry:
             bot.observe_history(room.history)
             return bot
         return RandomBot(seat.index, self._rng)
+
+    def _bot_display_name(self, room: Room) -> str:
+        noun = self._rng.choice(_BOT_NOUNS)
+        digit = str(self._rng.randint(0, 9))
+        return self._unique_display_name(room, f"Bot-{noun}{digit}")
 
     async def _reclaim_timeout(self, room: Room, seat_idx: int, player_key: str) -> None:
         await asyncio.sleep(120)
@@ -549,7 +717,7 @@ class RoomRegistry:
             seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
             seat.connected = False
             seat.player_key = None
-            seat.display_name = f"Bot-{seat.index}"
+            seat.display_name = self._bot_display_name(room)
             self._append_history(
                 room,
                 "SYSTEM",
@@ -647,8 +815,8 @@ class RoomRegistry:
     def _append_history(self, room: Room, kind: str, payload: Dict[str, object]) -> None:
         room.history.append(history_mod.new_history_entry(room.next_history_id, kind, payload))
         room.next_history_id += 1
-        if len(room.history) > 200:
-            room.history[:] = room.history[-200:]
+        if len(room.history) > 1000:
+            room.history[:] = room.history[-1000:]
 
     def _room_has_humans(self, room: Room) -> bool:
         for seat in room.seats:

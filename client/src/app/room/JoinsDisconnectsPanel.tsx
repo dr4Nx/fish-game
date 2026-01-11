@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppState } from "../../state/store";
 import type { RoomPublicState } from "./types";
+import { formatDisplayName } from "../nameUtils";
 
 type Props = {
   roomCode: string;
@@ -12,6 +13,7 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
   const { actions } = useAppState();
   const [chatInput, setChatInput] = useState("");
   const chatEnabled = publicState.phase === "LOBBY" || publicState.phase === "FINISHED";
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const entries = useMemo(() => {
     return publicState.history
@@ -20,7 +22,9 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
           const payload = entry.payload as { message?: string; data?: { seat?: number; displayName?: string | null } };
           const message = payload?.message ?? "";
           const seatIndex = payload?.data?.seat;
-          const name = payload?.data?.displayName ?? (typeof seatIndex === "number" ? seatName(seatIndex) : "Unknown");
+          const name = formatDisplayName(
+            payload?.data?.displayName ?? (typeof seatIndex === "number" ? seatName(seatIndex) : "Unknown")
+          );
           if (message.startsWith("Player joined") && typeof seatIndex === "number") {
             return { ts: entry.ts, text: `${name} joined.`, color: "#166534" };
           }
@@ -33,12 +37,32 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
           if (message.startsWith("Player left room voluntarily") && typeof seatIndex === "number") {
             return { ts: entry.ts, text: `${name} left the room.`, color: "#b91c1c" };
           }
+          if (message.startsWith("Seat kicked by host") && typeof seatIndex === "number") {
+            return { ts: entry.ts, text: `${name} was removed from the room.`, color: "#b91c1c" };
+          }
+          if (message.startsWith("The host filled empty seats with bots")) {
+            return { ts: entry.ts, text: "Empty seats were filled with bots.", color: "#166534" };
+          }
+          if (message.startsWith("The host added a bot to seat")) {
+            return { ts: entry.ts, text: "A bot joined the lobby.", color: "#166534" };
+          }
+          if (message.startsWith("The host made the lobby")) {
+            const text = message.replace("The host made the lobby", "Lobby set to");
+            return { ts: entry.ts, text, color: "#111827" };
+          }
+          if (message.startsWith("The host changed the amount of visible turns")) {
+            const text = message.replace("The host changed the amount of visible turns to", "Visible turns set to");
+            return { ts: entry.ts, text, color: "#111827" };
+          }
+          if (message.startsWith("Host transferred") && typeof seatIndex === "number") {
+            return { ts: entry.ts, text: `Crown passed to ${name}.`, color: "#111827" };
+          }
         }
         if (entry.kind === "CHAT") {
           const payload = entry.payload as { fromSeat?: number; message?: string; displayName?: string | null };
-          const name =
-            payload?.displayName ??
-            (typeof payload?.fromSeat === "number" ? seatName(payload.fromSeat) : "Unknown");
+          const name = formatDisplayName(
+            payload?.displayName ?? (typeof payload?.fromSeat === "number" ? seatName(payload.fromSeat) : "Unknown")
+          );
           const message = payload?.message ?? "";
           return { ts: entry.ts, text: `${name}: ${message}`, color: "#111827" };
         }
@@ -47,12 +71,20 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
       .filter((entry): entry is { ts: string; text: string; color: string } => Boolean(entry));
   }, [publicState.history, seatName]);
 
+  useEffect(() => {
+    const node = listRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollTop = node.scrollHeight;
+  }, [entries.length]);
+
   const formatTime = (iso: string) => {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) {
       return "";
     }
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   const sendMessage = () => {
@@ -68,22 +100,26 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
   };
 
   return (
-    <section style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <section className="room-sidebar-panel">
       <h3 style={{ marginTop: 0 }}>Chat</h3>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", marginTop: 6, paddingRight: 4 }}>
+      <div className="room-chat-list" ref={listRef}>
         {entries.length === 0 ? (
           <div>No recent activity.</div>
         ) : (
-          entries.map((entry, idx) => (
-            <div key={`${entry.ts}-${idx}`} style={{ marginTop: 6, color: entry.color }}>
-              {formatTime(entry.ts) ? `[${formatTime(entry.ts)}] ` : ""}
-              {entry.text}
-            </div>
-          ))
+          entries.map((entry, idx) => {
+            const time = formatTime(entry.ts);
+            return (
+              <div key={`${entry.ts}-${idx}`} style={{ marginTop: 6, color: entry.color }}>
+                {time && <span className="room-chat-time">[{time}]</span>}
+                <span>{entry.text}</span>
+              </div>
+            );
+          })
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      <div className="room-chat-compose">
         <input
+          className="home-input room-chat-input"
           placeholder={chatEnabled ? "Type a message" : "Chat restricted during play"}
           value={chatInput}
           maxLength={150}
@@ -95,9 +131,8 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
             }
           }}
           disabled={!chatEnabled}
-          style={{ flex: 1, padding: 8 }}
         />
-        <button onClick={sendMessage} disabled={!chatEnabled}>
+        <button className="home-btn room-secondary-btn room-chat-send" onClick={sendMessage} disabled={!chatEnabled}>
           Send
         </button>
       </div>

@@ -85,6 +85,25 @@ CLIENT_SCHEMAS: Dict[str, Dict[str, str]] = {
         "requestId": "string",
         "roomCode": "string",
     },
+    "fill_bots": {
+        "requestId": "string",
+        "roomCode": "string",
+    },
+    "fill_bot_seat": {
+        "requestId": "string",
+        "roomCode": "string",
+        "seat": "int",
+    },
+    "kick_seat": {
+        "requestId": "string",
+        "roomCode": "string",
+        "seat": "int",
+    },
+    "transfer_host": {
+        "requestId": "string",
+        "roomCode": "string",
+        "seat": "int",
+    },
 }
 
 
@@ -136,6 +155,10 @@ def validate_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     if msg_type == "set_team":
         if msg.get("teamId") not in ("A", "B"):
             raise ProtocolError("BAD_MESSAGE", "Invalid team")
+    if msg_type in ("fill_bot_seat", "kick_seat", "transfer_host"):
+        seat = msg.get("seat")
+        if seat not in range(6):
+            raise ProtocolError("INVALID_TARGET", "Invalid seat")
     return msg
 
 

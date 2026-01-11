@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { RoomPrivateState, RoomPublicState } from "./types";
 import { SETS } from "./constants";
 import { useAppState } from "../../state/store";
+import { formatDisplayName } from "../nameUtils";
 
 type Props = {
   roomCode: string;
@@ -26,6 +27,10 @@ export function AskPanel({ roomCode, publicState, privateState }: Props) {
 
   const [askTarget, setAskTarget] = useState<number | "">("");
   const [askCard, setAskCard] = useState<string>("");
+  const seatLabel = (seatIndex: number) => {
+    const seat = publicState.seats.find((entry) => entry.seat === seatIndex);
+    return formatDisplayName(seat?.displayName ?? (seat?.kind === "bot" ? "Bot" : undefined));
+  };
 
   const legalAskCards = useMemo(() => {
     const hand = privateState.hand;
@@ -43,13 +48,14 @@ export function AskPanel({ roomCode, publicState, privateState }: Props) {
   }, [privateState.hand]);
 
   return (
-    <section style={{ border: "1px solid #e5e7eb", padding: 12 }}>
+    <section className="room-card">
       <h3>Ask</h3>
-      <div>Current asker: Seat {publicState.currentAskerSeat}</div>
+      <div>Current asker: {seatLabel(publicState.currentAskerSeat)}</div>
       {isYourTurn ? (
         <>
-          <label style={{ display: "block", marginTop: 8 }}>Target seat</label>
+          <label style={{ display: "block", marginTop: 8 }}>Target player</label>
           <select
+            className="home-input"
             value={askTarget}
             onChange={(e) => {
               const value = e.target.value;
@@ -59,12 +65,12 @@ export function AskPanel({ roomCode, publicState, privateState }: Props) {
             <option value="">Select</option>
             {availableTargets.map((seat) => (
               <option key={seat} value={seat}>
-                Seat {seat}
+                {seatLabel(seat)}
               </option>
             ))}
           </select>
           <label style={{ display: "block", marginTop: 8 }}>Card</label>
-          <select value={askCard} onChange={(e) => setAskCard(e.target.value)}>
+          <select className="home-input" value={askCard} onChange={(e) => setAskCard(e.target.value)}>
             <option value="">Select</option>
             {legalAskCards.map((card) => (
               <option key={card} value={card}>
@@ -73,6 +79,7 @@ export function AskPanel({ roomCode, publicState, privateState }: Props) {
             ))}
           </select>
           <button
+            className="home-btn"
             style={{ display: "block", marginTop: 8 }}
             disabled={askTarget === "" || askCard === ""}
             onClick={() => actions.ask(roomCode, Number(askTarget), askCard)}

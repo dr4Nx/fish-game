@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { RoomPrivateState, RoomPublicState } from "./types";
 import { SETS } from "./constants";
 import { useAppState } from "../../state/store";
+import { formatDisplayName } from "../nameUtils";
 
 type Props = {
   roomCode: string;
@@ -14,6 +15,10 @@ export function ClaimPanel({ roomCode, publicState, privateState }: Props) {
   const yourSeat = privateState.yourSeat;
   const yourTeam = privateState.yourTeam;
   const teamSeats = yourTeam === "A" ? publicState.teams.A : publicState.teams.B;
+  const seatLabel = (seatIndex: number) => {
+    const seat = publicState.seats.find((entry) => entry.seat === seatIndex);
+    return formatDisplayName(seat?.displayName ?? (seat?.kind === "bot" ? "Bot" : undefined));
+  };
 
   const [claimSet, setClaimSet] = useState<string>("LOW_C");
   const [claimAssignments, setClaimAssignments] = useState<Record<string, number>>({});
@@ -27,11 +32,11 @@ export function ClaimPanel({ roomCode, publicState, privateState }: Props) {
   }, [claimSet, teamSeats, yourSeat]);
 
   return (
-    <section style={{ border: "1px solid #e5e7eb", padding: 12 }}>
+    <section className="room-card">
       <h3>Claim</h3>
       <>
         <label style={{ display: "block" }}>Set</label>
-        <select value={claimSet} onChange={(e) => setClaimSet(e.target.value)}>
+        <select className="home-input" value={claimSet} onChange={(e) => setClaimSet(e.target.value)}>
           {Object.keys(SETS).map((setId) => (
             <option key={setId} value={setId}>
               {setId}
@@ -43,19 +48,20 @@ export function ClaimPanel({ roomCode, publicState, privateState }: Props) {
             <div key={card} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
               <span style={{ width: 60 }}>{card}</span>
               <select
+                className="home-input"
                 value={claimAssignments[card] ?? ""}
                 onChange={(e) => setClaimAssignments((prev) => ({ ...prev, [card]: Number(e.target.value) }))}
               >
                 {teamSeats.map((seat) => (
                   <option key={seat} value={seat}>
-                    Seat {seat}
+                    {seatLabel(seat)}
                   </option>
                 ))}
               </select>
             </div>
           ))}
         </div>
-        <button style={{ marginTop: 8 }} onClick={() => actions.claim(roomCode, claimSet, claimAssignments)}>
+        <button className="home-btn" style={{ marginTop: 8 }} onClick={() => actions.claim(roomCode, claimSet, claimAssignments)}>
           Submit claim
         </button>
       </>

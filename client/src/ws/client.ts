@@ -93,6 +93,10 @@ export type ClientMessage =
     }
   | { type: "randomize_teams"; requestId: string; roomCode: string }
   | { type: "unassign_team"; requestId: string; roomCode: string }
+  | { type: "fill_bots"; requestId: string; roomCode: string }
+  | { type: "fill_bot_seat"; requestId: string; roomCode: string; seat: number }
+  | { type: "kick_seat"; requestId: string; roomCode: string; seat: number }
+  | { type: "transfer_host"; requestId: string; roomCode: string; seat: number }
   | {
       type: "action_ask";
       requestId: string;
