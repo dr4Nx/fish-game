@@ -76,8 +76,6 @@ export function RoomView({ roomCode }: { roomCode: string }) {
       <div className="room-main">
         <RoomHeader
           roomCode={roomCode}
-          publicState={publicState}
-          privateState={privateState}
           onCopyRoomCode={handleCopyNotice}
         />
         {publicState.phase === "LOBBY" ? (

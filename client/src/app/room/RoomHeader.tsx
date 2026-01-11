@@ -1,14 +1,10 @@
 import { useAppState } from "../../state/store";
-import type { RoomPrivateState, RoomPublicState } from "./types";
-
 type Props = {
   roomCode: string;
-  publicState: RoomPublicState;
-  privateState: RoomPrivateState;
   onCopyRoomCode: () => void;
 };
 
-export function RoomHeader({ roomCode, publicState, privateState, onCopyRoomCode }: Props) {
+export function RoomHeader({ roomCode, onCopyRoomCode }: Props) {
   const { state, actions } = useAppState();
 
   const copyRoomCode = () => {
