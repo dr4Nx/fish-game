@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RoomPrivateState, RoomPublicState } from "./types";
 import { getCardDisplay, setLabel } from "./cardUtils";
 
@@ -10,6 +10,7 @@ type Props = {
 
 export function RecentActionsPanel({ publicState, privateState, seatName }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
   const yourSeat = privateState.yourSeat;
   const yourTeam = privateState.yourTeam;
   const lastFinishIndex = (() => {
@@ -176,13 +177,25 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
       );
     });
 
-  useEffect(() => {
+  const latestActionId = recentActions.length > 0 ? recentActions[recentActions.length - 1].id : "";
+
+  useLayoutEffect(() => {
     const node = scrollRef.current;
     if (!node) {
       return;
     }
-    node.scrollTop = node.scrollHeight;
-  }, [recentLines.length]);
+    const scrollToBottom = () => {
+      node.scrollTop = node.scrollHeight;
+      endRef.current?.scrollIntoView({ block: "end" });
+    };
+    scrollToBottom();
+    const raf = requestAnimationFrame(scrollToBottom);
+    const timer = window.setTimeout(scrollToBottom, 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [latestActionId]);
 
   return (
     <section className="room-card room-panel">
@@ -193,6 +206,7 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         ) : (
           recentLines
         )}
+        <div ref={endRef} />
       </div>
     </section>
   );

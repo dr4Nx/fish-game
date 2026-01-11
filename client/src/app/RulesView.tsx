@@ -33,6 +33,7 @@ export function RulesView() {
             <li>Pick Team Alpha or Team Beta; you can unassign and switch in the lobby.</li>
             <li>Teams are capped at 3 players each; a full team cannot be joined.</li>
             <li>The host can randomize teams and add bots (single seat or fill all empty seats).</li>
+            <li>The host can tune bot speed and bot forgetfulness in the lobby settings.</li>
             <li>Lobby bots are placeholders; a joining human can replace a bot seat.</li>
             <li>The game starts only when all 6 seats are filled and all humans are team-assigned.</li>
             <li>If the host leaves, host status transfers to a random human in the room.</li>
@@ -51,6 +52,10 @@ export function RulesView() {
               If the current asker has no cards after a claim or disjoint, the turn passes to the next teammate with
               cards (seat order).
             </li>
+            <li>
+              If the current asker has cards but no legal asks (all opponents are disjoint or out of cards), the turn
+              passes to the next teammate with cards (seat order).
+            </li>
           </ul>
         </section>
 
@@ -60,7 +65,7 @@ export function RulesView() {
             <li>At any time during PLAYING, any player may call disjoint on an opposing seat.</li>
             <li>Caller and target must be on opposing teams and not already disjoint.</li>
             <li>
-              If incorrect, the target takes all cards from the caller that share any half-suit with the target.
+              If incorrect, any overlapping half-suits are immediately captured for the target’s team (cards removed).
             </li>
             <li>After a disjoint call, the pair becomes disjoint and cannot ask each other again.</li>
             <li>Disjoint calls do not change turn order.</li>
@@ -87,6 +92,14 @@ export function RulesView() {
             <li>The game ends after all 9 sets are captured.</li>
             <li>The team with more captured sets wins.</li>
             <li>After FINISHED, the host can return the room to the lobby.</li>
+          </ul>
+        </section>
+
+        <section className="rules-section">
+          <h2>Chat</h2>
+          <ul>
+            <li>Chat is available in all phases, including during play.</li>
+            <li>Messages are limited to 150 characters.</li>
           </ul>
         </section>
       </div>

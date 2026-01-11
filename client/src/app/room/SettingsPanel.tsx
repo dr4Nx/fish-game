@@ -60,7 +60,7 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
         </div>
       </div>
       <div className="room-field">
-        <label style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Recent actions length</label>
+        <label style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Public Turns</label>
         <select
           className="home-input room-select"
           value={historyLength}

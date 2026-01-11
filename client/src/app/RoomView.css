@@ -216,7 +216,7 @@ body,
 
 .room-game-right {
   display: grid;
-  grid-template-rows: 2fr 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 16px;
   min-height: 0;
   height: 100%;
@@ -618,6 +618,11 @@ body,
 
 .room-captured-panel h3 {
   margin-bottom: 10px;
+}
+
+.room-captured-panel {
+  align-self: start;
+  height: fit-content;
 }
 
 .room-captured-team {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RoomPrivateState, RoomPublicState } from "./types";
 import { getCardDisplay, setLabel } from "./cardUtils";
 
@@ -10,6 +10,7 @@ type Props = {
 
 export function MatchHistoryPanel({ publicState, privateState, seatName }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
   const yourSeat = privateState.yourSeat;
   const yourTeam = privateState.yourTeam;
   const startIndex = (() => {
@@ -170,19 +171,32 @@ export function MatchHistoryPanel({ publicState, privateState, seatName }: Props
     );
   });
 
-  useEffect(() => {
+  const latestActionId = matchActions.length > 0 ? matchActions[matchActions.length - 1].id : "";
+
+  useLayoutEffect(() => {
     const node = scrollRef.current;
     if (!node) {
       return;
     }
-    node.scrollTop = node.scrollHeight;
-  }, [lines.length]);
+    const scrollToBottom = () => {
+      node.scrollTop = node.scrollHeight;
+      endRef.current?.scrollIntoView({ block: "end" });
+    };
+    scrollToBottom();
+    const raf = requestAnimationFrame(scrollToBottom);
+    const timer = window.setTimeout(scrollToBottom, 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [latestActionId]);
 
   return (
     <section className="room-card room-panel room-match-history">
       <h3>Match History</h3>
       <div className="room-card-scroll" ref={scrollRef}>
         {lines.length === 0 ? <div style={{ marginTop: 6 }}>No actions recorded yet.</div> : lines}
+        <div ref={endRef} />
       </div>
     </section>
   );
