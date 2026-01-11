@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { RoomPrivateState, RoomPublicState } from "./types";
 import { getCardDisplay, setLabel } from "./cardUtils";
 
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export function RecentActionsPanel({ publicState, privateState, seatName }: Props) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const yourSeat = privateState.yourSeat;
   const yourTeam = privateState.yourTeam;
   const lastFinishIndex = (() => {
@@ -113,10 +115,29 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         const setId = payload.setId as string;
         const result = payload.result as string;
         const awarded = payload.awardedToTeam as string;
+        const holders = (payload.holders as Array<{ seat: number; cards: string[] }>) ?? [];
+        const awardedLabel = awarded === "A" ? "Alpha" : awarded === "B" ? "Beta" : awarded;
         return (
-          <div key={`${entry.id}-claim-${idx}`} className="past-turn-line">
-            {renderName(fromSeat)} claimed <span className="past-set">{setLabel(setId)}</span> ({result}), awarded to
-            Team {awarded}.
+          <div key={`${entry.id}-claim-${idx}`}>
+            <div className="past-turn-line">
+              {renderName(fromSeat)} claimed <span className="past-set">{setLabel(setId)}</span> ({result}), awarded to
+              Team {awardedLabel}.
+            </div>
+            {holders.length > 0 && (
+              <div className="past-turn-line past-claim-holders">
+                {holders.map((holder, holderIdx) => (
+                  <span key={`${entry.id}-holder-${holder.seat}`} className="past-claim-holder">
+                    {renderName(holder.seat)}:{" "}
+                    {holder.cards.map((card, cardIdx) => (
+                      <span key={`${entry.id}-holder-${holder.seat}-${cardIdx}`} className="past-card-list">
+                        {renderCard(card)}
+                      </span>
+                    ))}
+                    {holderIdx < holders.length - 1 ? "; " : ""}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       }
@@ -124,14 +145,18 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         const fromSeat = payload.fromSeat as number;
         const toSeat = payload.toSeat as number;
         const result = payload.result as string;
-        const transferred = (payload.transferred as string[]) ?? [];
-        if (result === "INCORRECT" && transferred.length > 0) {
+        const transferredSets = (payload.transferredSets as string[]) ?? [];
+        const awarded = payload.awardedToTeam as string | undefined;
+        const awardedLabel = awarded === "A" ? "Alpha" : awarded === "B" ? "Beta" : awarded;
+        if (result === "INCORRECT" && transferredSets.length > 0) {
           return (
             <div key={`${entry.id}-disjoint-${idx}`} className="past-turn-line">
               {renderName(fromSeat)} called disjoint with {renderName(toSeat)} ({result}). Transferred:{" "}
-              {transferred.map((card, cardIdx) => (
-                <span key={`${entry.id}-t-${cardIdx}`} className="past-card-list">
-                  {renderCard(card)}
+              {awardedLabel ? `Team ${awardedLabel}: ` : ""}
+              {transferredSets.map((setId, setIdx) => (
+                <span key={`${entry.id}-set-${setIdx}`} className="past-set">
+                  {setLabel(setId)}
+                  {setIdx < transferredSets.length - 1 ? ", " : ""}
                 </span>
               ))}
               .
@@ -151,10 +176,18 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
       );
     });
 
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollTop = node.scrollHeight;
+  }, [recentLines.length]);
+
   return (
     <section className="room-card room-panel">
       <h3>Past Turns</h3>
-      <div className="room-card-scroll">
+      <div className="room-card-scroll" ref={scrollRef}>
         {recentLines.length === 0 ? (
           <div style={{ marginTop: 6 }}>No actions yet.</div>
         ) : (

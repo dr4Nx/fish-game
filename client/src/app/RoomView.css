@@ -121,6 +121,7 @@ body,
 .room-team-summary {
   margin-top: 12px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .room-team-summary-label {
@@ -222,8 +223,8 @@ body,
 }
 
 .room-game-right-finished {
-  display: grid;
-  grid-template-rows: auto minmax(130px, 1fr) minmax(240px, 2fr);
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   align-items: stretch;
   height: 100%;
@@ -244,7 +245,8 @@ body,
 }
 
 .room-match-history {
-  min-height: 220px;
+  min-height: 350px;
+  flex: 1;
 }
 
 .room-panel {
@@ -258,6 +260,7 @@ body,
   align-self: start;
   height: fit-content;
 }
+
 
 .room-card-scroll {
   overflow-y: auto;
@@ -388,6 +391,7 @@ body,
   padding-top: 12px;
   overflow: visible;
   align-self: stretch;
+  flex-shrink: 0;
 }
 
 .room-players-header {
@@ -562,6 +566,15 @@ body,
 .past-set {
   font-weight: 700;
   color: #1f2937;
+}
+
+.past-claim-holders {
+  font-size: 13px;
+  color: #334155;
+}
+
+.past-claim-holder {
+  font-weight: 600;
 }
 
 .past-name-self {

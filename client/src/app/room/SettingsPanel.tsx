@@ -12,6 +12,8 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
   const isHost = publicState.hostSeat === privateState.yourSeat;
   const isPublic = publicState.settings?.isPublic ?? false;
   const historyLength = publicState.settings?.historyLength ?? 3;
+  const botDelayMs = publicState.settings?.botDelayMs ?? 5000;
+  const botForgetfulness = publicState.settings?.botForgetfulness ?? 7;
   const teamCounts = {
     A: publicState.teams.A.length,
     B: publicState.teams.B.length,
@@ -43,14 +45,14 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
         <div className="room-toggle">
           <button
             className={`room-toggle-btn ${!isPublic ? "active" : ""}`}
-            onClick={() => actions.updateSettings(roomCode, false, historyLength)}
+            onClick={() => actions.updateSettings(roomCode, false, historyLength, botDelayMs, botForgetfulness)}
             disabled={!isHost}
           >
             Private
           </button>
           <button
             className={`room-toggle-btn ${isPublic ? "active" : ""}`}
-            onClick={() => actions.updateSettings(roomCode, true, historyLength)}
+            onClick={() => actions.updateSettings(roomCode, true, historyLength, botDelayMs, botForgetfulness)}
             disabled={!isHost}
           >
             Public
@@ -63,11 +65,47 @@ export function SettingsPanel({ roomCode, publicState, privateState }: Props) {
           className="home-input room-select"
           value={historyLength}
           disabled={!isHost}
-          onChange={(e) => actions.updateSettings(roomCode, isPublic, Number(e.target.value))}
+          onChange={(e) =>
+            actions.updateSettings(roomCode, isPublic, Number(e.target.value), botDelayMs, botForgetfulness)
+          }
         >
           {Array.from({ length: 20 }, (_, idx) => idx + 1).map((value) => (
             <option key={value} value={value}>
               {value}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="room-field">
+        <label style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Bot forgetfulness</label>
+        <select
+          className="home-input room-select"
+          value={botForgetfulness}
+          disabled={!isHost}
+          onChange={(e) =>
+            actions.updateSettings(roomCode, isPublic, historyLength, botDelayMs, Number(e.target.value))
+          }
+        >
+          {Array.from({ length: 31 }, (_, idx) => idx).map((value) => (
+            <option key={value} value={value}>
+              {value}%
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="room-field">
+        <label style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Bot speed</label>
+        <select
+          className="home-input room-select"
+          value={botDelayMs}
+          disabled={!isHost}
+          onChange={(e) =>
+            actions.updateSettings(roomCode, isPublic, historyLength, Number(e.target.value), botForgetfulness)
+          }
+        >
+          {[3000, 5000, 7000, 10000, 15000, 20000].map((value) => (
+            <option key={value} value={value}>
+              {(value / 1000).toFixed(1)}s
             </option>
           ))}
         </select>

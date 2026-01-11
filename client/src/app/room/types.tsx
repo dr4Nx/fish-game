@@ -16,7 +16,7 @@ export type RoomPublicState = {
   disjointPairs: Array<{ a: number; b: number }>;
   handCounts: Record<string, number>;
   capturedSets: { A: string[]; B: string[] };
-  settings: { isPublic: boolean; historyLength: number };
+  settings: { isPublic: boolean; historyLength: number; botDelayMs: number; botForgetfulness: number };
   history: Array<{
     id: string;
     ts: string;

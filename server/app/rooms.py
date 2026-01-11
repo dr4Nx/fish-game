@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from .bots.memory_bot import MemoryBot
 from .bots.random_bot import RandomBot
 from .bots.strategic_bot import StrategicBot
+from .bots.strategic_forgetful_bot import StrategicForgetfulBot
 from .game.engine import GameEngine
 from .game.models import CardId, Phase, Room, Seat, SeatKind, SetId
 from .game import rules
@@ -67,7 +68,15 @@ class RoomRegistry:
         self._reclaim_tasks[room_code] = {}
         return room
 
-    def update_settings(self, player_key: str, room_code: str, is_public: bool, history_length: int) -> None:
+    def update_settings(
+        self,
+        player_key: str,
+        room_code: str,
+        is_public: bool,
+        history_length: int,
+        bot_delay_ms: int,
+        bot_forgetfulness: int,
+    ) -> None:
         room = self._require_room(room_code)
         if room.phase != Phase.LOBBY:
             raise AssertionError("PHASE_INVALID")
@@ -75,10 +84,18 @@ class RoomRegistry:
             raise AssertionError("NOT_YOUR_TURN")
         if not isinstance(history_length, int) or history_length < 1 or history_length > 20:
             raise AssertionError("BAD_MESSAGE")
+        if not isinstance(bot_delay_ms, int) or bot_delay_ms < 3000 or bot_delay_ms > 20000:
+            raise AssertionError("BAD_MESSAGE")
+        if not isinstance(bot_forgetfulness, int) or bot_forgetfulness < 0 or bot_forgetfulness > 30:
+            raise AssertionError("BAD_MESSAGE")
         prev_public = room.is_public
         prev_length = room.history_length
+        prev_delay = room.bot_delay_ms
+        prev_forget = room.bot_forgetfulness
         room.is_public = bool(is_public)
         room.history_length = history_length
+        room.bot_delay_ms = bot_delay_ms
+        room.bot_forgetfulness = bot_forgetfulness
         if prev_public != room.is_public:
             status = "public" if room.is_public else "private"
             self._append_history(room, "SYSTEM", history_mod.system_payload(f"The host made the lobby {status}.", {}))
@@ -88,6 +105,22 @@ class RoomRegistry:
                 "SYSTEM",
                 history_mod.system_payload(
                     f"The host changed the amount of visible turns to {room.history_length}.",
+                    {},
+                ),
+            )
+        if prev_delay != room.bot_delay_ms:
+            seconds = room.bot_delay_ms / 1000
+            self._append_history(
+                room,
+                "SYSTEM",
+                history_mod.system_payload(f"The host set bot speed to {seconds:.1f}s.", {}),
+            )
+        if prev_forget != room.bot_forgetfulness:
+            self._append_history(
+                room,
+                "SYSTEM",
+                history_mod.system_payload(
+                    f"The host set bot forgetfulness to {room.bot_forgetfulness}%.",
                     {},
                 ),
             )
@@ -218,6 +251,11 @@ class RoomRegistry:
             self._rng.shuffle(bot_seats)
             for seat_idx, team_id in zip(bot_seats, assignments):
                 room.team_of_seat[seat_idx] = team_id
+        self._append_history(
+            room,
+            "SYSTEM",
+            history_mod.system_payload("The host randomized teams.", {}),
+        )
 
     def unassign_team(self, player_key: str, room_code: str) -> None:
         room = self._require_room(room_code)
@@ -253,7 +291,7 @@ class RoomRegistry:
             team_id = self._rng.choice(choices)
             team_counts[team_id] += 1
             seat.kind = SeatKind.BOT
-            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
+            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_forgetful")
             seat.display_name = self._bot_display_name(room)
             seat.connected = False
             seat.player_key = None
@@ -292,7 +330,7 @@ class RoomRegistry:
         else:
             team_id = self._rng.choice(["A", "B"])
         seat.kind = SeatKind.BOT
-        seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
+        seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_forgetful")
         seat.display_name = self._bot_display_name(room)
         seat.connected = False
         seat.player_key = None
@@ -488,8 +526,6 @@ class RoomRegistry:
     def perform_chat(self, player_key: str, room_code: str, message: str) -> None:
         room = self._require_room(room_code)
         seat_idx = self._require_seat(room, player_key)
-        if room.phase not in (Phase.LOBBY, Phase.FINISHED):
-            raise AssertionError("PHASE_INVALID")
         cleaned = self._sanitize_chat_message(message)
         if not cleaned or len(cleaned) > 150:
             raise AssertionError("BAD_MESSAGE")
@@ -507,25 +543,38 @@ class RoomRegistry:
         target_sets = {rules.set_id_for_card(card) for card in target_hand}
         overlap = asker_sets.intersection(target_sets)
         correct = len(overlap) == 0
-        transferred: List[CardId] = []
+        transferred_sets: List[SetId] = []
+        awarded_team: Optional[str] = None
         if not correct:
-            remaining: List[CardId] = []
-            for card in asker_hand:
-                if rules.set_id_for_card(card) in target_sets:
-                    transferred.append(card)
-                else:
-                    remaining.append(card)
-            if transferred:
-                room.hands[asker] = remaining
-                room.hands.setdefault(target, []).extend(transferred)
+            awarded_team = self._team_for_seat(room, target)
+            captured = set(room.captured_sets["A"]) | set(room.captured_sets["B"])
+            for set_id in sorted(overlap):
+                if set_id in captured:
+                    continue
+                transferred_sets.append(set_id)
+                room.captured_sets[awarded_team].append(set_id)
+                for seat, hand in room.hands.items():
+                    room.hands[seat] = [
+                        card for card in hand if rules.set_id_for_card(card) != set_id
+                    ]
+            if len(room.captured_sets["A"]) + len(room.captured_sets["B"]) == 9:
+                room.phase = Phase.FINISHED
+                winning = "A" if len(room.captured_sets["A"]) > len(room.captured_sets["B"]) else "B"
+                self._append_history(
+                    room,
+                    "SYSTEM",
+                    history_mod.system_payload("Game finished and winning team announced", {"winner": winning}),
+                )
         pair = (min(asker, target), max(asker, target))
         room.disjoint_pairs.add(pair)
         payload: Dict[str, object] = {
             "fromSeat": asker,
             "toSeat": target,
             "result": "CORRECT" if correct else "INCORRECT",
-            "transferred": list(transferred),
         }
+        if transferred_sets:
+            payload["transferredSets"] = list(transferred_sets)
+            payload["awardedToTeam"] = awarded_team
         self._append_history(room, "DISJOINT", payload)
         self._engine.assert_invariants(room)
         return payload
@@ -610,6 +659,8 @@ class RoomRegistry:
 
     async def handle_bot_turns(self, room: Room, on_update) -> None:
         while room.phase == Phase.PLAYING:
+            delay_ms = max(3000, min(20000, room.bot_delay_ms))
+            await asyncio.sleep(delay_ms / 1000)
             if self._perform_auto_bot_claim(room):
                 await on_update(room.code)
                 if room.phase != Phase.PLAYING:
@@ -624,7 +675,6 @@ class RoomRegistry:
             seat = room.seats[current]
             if seat.kind != SeatKind.BOT:
                 return
-            await asyncio.sleep(5.0)
             bot = self._build_bot(seat, room)
             public = self.build_public_state(room, "")
             hand = list(room.hands.get(current, []))
@@ -681,7 +731,12 @@ class RoomRegistry:
             "handCounts": hand_counts,
             "capturedSets": captured,
             "history": list(room.history),
-            "settings": {"isPublic": room.is_public, "historyLength": room.history_length},
+            "settings": {
+                "isPublic": room.is_public,
+                "historyLength": room.history_length,
+                "botDelayMs": room.bot_delay_ms,
+                "botForgetfulness": room.bot_forgetfulness,
+            },
         }
 
     def list_public_lobbies(self) -> List[Dict[str, Any]]:
@@ -713,7 +768,7 @@ class RoomRegistry:
         return {"yourSeat": seat_idx, "hand": hand, "yourTeam": team}
 
     def _fill_bots(self, room: Room, needed: Dict[str, int]) -> None:
-        default_bot = os.getenv("BOT_DEFAULT", "strategic_bot")
+        default_bot = os.getenv("BOT_DEFAULT", "strategic_forgetful")
         empty_seats = [seat for seat in room.seats if seat.kind == SeatKind.EMPTY]
         assignments = ["A"] * needed["A"] + ["B"] * needed["B"]
         if len(assignments) != len(empty_seats):
@@ -730,13 +785,16 @@ class RoomRegistry:
             room.team_of_seat[seat.index] = team_id
 
     def _build_bot(self, seat: Seat, room: Room):
-        bot_id = seat.bot_id or "strategic_bot"
+        bot_id = seat.bot_id or "strategic_forgetful"
         if bot_id == "memory_bot":
             bot = MemoryBot(seat.index, self._rng)
             bot.observe_history(room.history)
             return bot
         if bot_id == "strategic_bot":
             return StrategicBot(seat.index, self._rng)
+        if bot_id == "strategic_forgetful":
+            forget_chance = room.bot_forgetfulness / 100
+            return StrategicForgetfulBot(seat.index, self._rng, forget_chance)
         return RandomBot(seat.index, self._rng)
 
     def _bot_display_name(self, room: Room) -> str:
@@ -772,7 +830,7 @@ class RoomRegistry:
             )
         else:
             seat.kind = SeatKind.BOT
-            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
+            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_forgetful")
             seat.connected = False
             seat.player_key = None
             seat.display_name = self._bot_display_name(room)
@@ -864,7 +922,8 @@ class RoomRegistry:
             return False
         has_human = any(seat.kind == SeatKind.HUMAN for seat in team_seats)
         all_strategic = all(
-            seat.kind == SeatKind.BOT and (seat.bot_id or "strategic_bot") == "strategic_bot"
+            seat.kind == SeatKind.BOT
+            and (seat.bot_id or "strategic_forgetful") in ("strategic_bot", "strategic_forgetful")
             for seat in team_seats
         )
         if has_human or not all_strategic:

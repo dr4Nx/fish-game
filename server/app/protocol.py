@@ -71,6 +71,8 @@ CLIENT_SCHEMAS: Dict[str, Dict[str, str]] = {
         "roomCode": "string",
         "isPublic": "bool",
         "historyLength": "int",
+        "botDelayMs": "int",
+        "botForgetfulness": "int",
     },
     "set_team": {
         "requestId": "string",
@@ -155,6 +157,16 @@ def validate_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     if msg_type == "set_team":
         if msg.get("teamId") not in ("A", "B"):
             raise ProtocolError("BAD_MESSAGE", "Invalid team")
+    if msg_type == "update_settings":
+        history_length = msg.get("historyLength")
+        bot_delay_ms = msg.get("botDelayMs")
+        bot_forget = msg.get("botForgetfulness")
+        if not isinstance(history_length, int) or history_length < 1 or history_length > 20:
+            raise ProtocolError("BAD_MESSAGE", "Invalid history length")
+        if not isinstance(bot_delay_ms, int) or bot_delay_ms < 3000 or bot_delay_ms > 20000:
+            raise ProtocolError("BAD_MESSAGE", "Invalid bot delay")
+        if not isinstance(bot_forget, int) or bot_forget < 0 or bot_forget > 30:
+            raise ProtocolError("BAD_MESSAGE", "Invalid bot forgetfulness")
     if msg_type in ("fill_bot_seat", "kick_seat", "transfer_host"):
         seat = msg.get("seat")
         if seat not in range(6):

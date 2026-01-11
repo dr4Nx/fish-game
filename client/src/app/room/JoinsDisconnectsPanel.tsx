@@ -12,7 +12,7 @@ type Props = {
 export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props) {
   const { actions } = useAppState();
   const [chatInput, setChatInput] = useState("");
-  const chatEnabled = publicState.phase === "LOBBY" || publicState.phase === "FINISHED";
+  const chatEnabled = true;
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const entries = useMemo(() => {
@@ -53,6 +53,17 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
           if (message.startsWith("The host changed the amount of visible turns")) {
             const text = message.replace("The host changed the amount of visible turns to", "Visible turns set to");
             return { ts: entry.ts, text, color: "#111827" };
+          }
+          if (message.startsWith("The host set bot speed to")) {
+            const text = message.replace("The host set bot speed to", "Bot speed set to");
+            return { ts: entry.ts, text, color: "#111827" };
+          }
+          if (message.startsWith("The host set bot forgetfulness to")) {
+            const text = message.replace("The host set bot forgetfulness to", "Bot forgetfulness set to");
+            return { ts: entry.ts, text, color: "#111827" };
+          }
+          if (message.startsWith("The host randomized teams")) {
+            return { ts: entry.ts, text: "Teams randomized.", color: "#111827" };
           }
           if (message.startsWith("Host transferred") && typeof seatIndex === "number") {
             return { ts: entry.ts, text: `Crown passed to ${name}.`, color: "#111827" };
@@ -120,7 +131,7 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
       <div className="room-chat-compose">
         <input
           className="home-input room-chat-input"
-          placeholder={chatEnabled ? "Type a message" : "Chat restricted during play"}
+          placeholder="Type a message"
           value={chatInput}
           maxLength={150}
           onChange={(e) => setChatInput(e.target.value)}
@@ -130,9 +141,8 @@ export function JoinsDisconnectsPanel({ roomCode, publicState, seatName }: Props
               sendMessage();
             }
           }}
-          disabled={!chatEnabled}
         />
-        <button className="home-btn room-secondary-btn room-chat-send" onClick={sendMessage} disabled={!chatEnabled}>
+        <button className="home-btn room-secondary-btn room-chat-send" onClick={sendMessage}>
           Send
         </button>
       </div>

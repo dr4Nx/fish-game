@@ -196,7 +196,12 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     if _connections.get(room_code, {}).get(player_key) != ws:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.update_settings(
-                        player_key, room_code, msg["isPublic"], msg["historyLength"]
+                        player_key,
+                        room_code,
+                        msg["isPublic"],
+                        msg["historyLength"],
+                        msg["botDelayMs"],
+                        msg["botForgetfulness"],
                     )
                     await handle_room_update(room_code)
                 elif msg_type == "set_team":

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .interfaces import Bot
 from ..game import rules
@@ -52,11 +52,18 @@ def _history_start_index(history: List[Dict[str, Any]]) -> int:
 
 
 class KnowledgeState:
-    def __init__(self, public_state: Dict[str, Any], hand: List[str], seat_index: int) -> None:
+    def __init__(
+        self,
+        public_state: Dict[str, Any],
+        hand: List[str],
+        seat_index: int,
+        forget_ask: Optional[Callable[[Dict[str, Any]], bool]] = None,
+    ) -> None:
         self._public_state = public_state
         self._hand = set(hand)
         self._seat = seat_index
         self._history = public_state.get("history", [])
+        self._forget_ask = forget_ask
         self._hand_counts = {
             int(seat): int(count) for seat, count in public_state.get("handCounts", {}).items()
         }
@@ -103,6 +110,8 @@ class KnowledgeState:
             kind = entry.get("kind")
             payload = entry.get("payload", {})
             if kind == "ASK":
+                if self._forget_ask and self._forget_ask(entry):
+                    continue
                 card_id = payload.get("cardId")
                 from_seat = payload.get("fromSeat")
                 to_seat = payload.get("toSeat")
@@ -119,13 +128,13 @@ class KnowledgeState:
                     self._possible_holders[card_id].discard(from_seat)
                     self._possible_holders[card_id].discard(to_seat)
             elif kind == "DISJOINT":
-                to_seat = payload.get("toSeat")
-                transferred = payload.get("transferred", [])
-                if not isinstance(to_seat, int) or not isinstance(transferred, list):
+                transferred_sets = payload.get("transferredSets", [])
+                if not isinstance(transferred_sets, list):
                     continue
-                for card in transferred:
-                    if card in self._possible_holders:
-                        self._possible_holders[card] = {to_seat}
+                for set_id in transferred_sets:
+                    if set_id in rules.SET_CARDS:
+                        for card in rules.cards_in_set(set_id):
+                            self._possible_holders[card] = set()
             elif kind == "CLAIM":
                 set_id = payload.get("setId")
                 if isinstance(set_id, str) and set_id in rules.SET_CARDS:
@@ -173,10 +182,13 @@ class StrategicBot(Bot):
         self._seat = seat_index
         self._rng = rng
 
+    def _build_knowledge(self, public_state: Dict[str, Any], hand: List[str]) -> KnowledgeState:
+        return KnowledgeState(public_state, hand, self._seat)
+
     def select_action(self, public_state: Dict[str, Any], hand: List[str]) -> Dict[str, Any]:
         if public_state.get("phase") != "PLAYING":
             return {"type": "action_none"}
-        knowledge = KnowledgeState(public_state, hand, self._seat)
+        knowledge = self._build_knowledge(public_state, hand)
         team = _team_for_seat(public_state, self._seat)
         if not team:
             return {"type": "action_none"}
@@ -250,7 +262,7 @@ class StrategicBot(Bot):
     def select_disjoint_target(self, public_state: Dict[str, Any], hand: List[str]) -> Optional[int]:
         if public_state.get("phase") != "PLAYING":
             return None
-        knowledge = KnowledgeState(public_state, hand, self._seat)
+        knowledge = self._build_knowledge(public_state, hand)
         opponents = _opposing_seats(public_state, self._seat)
         if not opponents:
             return None
@@ -269,7 +281,7 @@ class StrategicBot(Bot):
     def select_claim(self, public_state: Dict[str, Any], hand: List[str]) -> Optional[Tuple[str, Dict[str, int]]]:
         if public_state.get("phase") != "PLAYING":
             return None
-        knowledge = KnowledgeState(public_state, hand, self._seat)
+        knowledge = self._build_knowledge(public_state, hand)
         known_holder = knowledge.known_holder()
         captured = set(public_state.get("capturedSets", {}).get("A", [])) | set(
             public_state.get("capturedSets", {}).get("B", [])
@@ -298,7 +310,7 @@ class StrategicBot(Bot):
     ) -> Optional[Tuple[str, Dict[str, int]]]:
         if public_state.get("phase") != "PLAYING":
             return None
-        knowledge = KnowledgeState(public_state, hand, self._seat)
+        knowledge = self._build_knowledge(public_state, hand)
         team = _team_for_seat(public_state, self._seat)
         if not team:
             return None

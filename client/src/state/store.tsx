@@ -34,7 +34,13 @@ export type AppActions = {
   setName: (name: string) => void;
   sendChat: (roomCode: string, message: string) => void;
   listLobbies: () => void;
-  updateSettings: (roomCode: string, isPublic: boolean, historyLength: number) => void;
+  updateSettings: (
+    roomCode: string,
+    isPublic: boolean,
+    historyLength: number,
+    botDelayMs: number,
+    botForgetfulness: number
+  ) => void;
   setTeam: (roomCode: string, teamId: "A" | "B") => void;
   randomizeTeams: (roomCode: string) => void;
   unassignTeam: (roomCode: string) => void;
@@ -214,13 +220,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [send]);
 
   const updateSettings = useCallback(
-    (code: string, isPublic: boolean, historyLength: number) => {
+    (code: string, isPublic: boolean, historyLength: number, botDelayMs: number, botForgetfulness: number) => {
       send({
         type: "update_settings",
         requestId: newRequestId(),
         roomCode: code,
         isPublic,
         historyLength,
+        botDelayMs,
+        botForgetfulness,
       });
     },
     [send]

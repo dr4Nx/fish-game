@@ -88,9 +88,7 @@ export function HomeView() {
             >
               Fish Online
             </div>
-            <div style={{ color: "#64748b", marginTop: 8 }}>
-              Choose a display name to get started.
-            </div>
+            <div style={{ color: "#64748b", marginTop: 8 }}>The best card game in the world.</div>
           </div>
           <div
             style={{
@@ -172,9 +170,17 @@ export function HomeView() {
               </button>
             </div>
           </div>
-          <div style={{ marginTop: 14, textAlign: "center" }}>
+          <div style={{ marginTop: 14, textAlign: "center", display: "flex", gap: 16, justifyContent: "center" }}>
             <a href="#/rules" style={{ color: "#2563eb", fontSize: 15, textDecoration: "underline" }}>
               Rules
+            </a>
+            <a
+              href="https://github.com/dr4Nx/fish-game/tree/main"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#2563eb", fontSize: 15, textDecoration: "underline" }}
+            >
+              GitHub
             </a>
           </div>
         </div>

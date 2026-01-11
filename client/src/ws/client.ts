@@ -48,7 +48,7 @@ export type RoomPublicState = {
   handCounts: Record<string, number>;
   capturedSets: { A: string[]; B: string[] };
   history: HistoryEntry[];
-  settings: { isPublic: boolean; historyLength: number };
+  settings: { isPublic: boolean; historyLength: number; botDelayMs: number; botForgetfulness: number };
 };
 
 export type RoomPrivateState = {
@@ -84,6 +84,8 @@ export type ClientMessage =
       roomCode: string;
       isPublic: boolean;
       historyLength: number;
+      botDelayMs: number;
+      botForgetfulness: number;
     }
   | {
       type: "set_team";

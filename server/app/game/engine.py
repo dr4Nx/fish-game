@@ -112,6 +112,11 @@ class GameEngine:
             if card not in rules.CARD_TO_SET:
                 raise AssertionError("INVALID_CLAIM_ASSIGNMENT")
         correct = True
+        holders: List[Dict[str, object]] = []
+        for seat in range(6):
+            cards = [card for card in required_cards if card in room.hands.get(seat, [])]
+            if cards:
+                holders.append({"seat": seat, "cards": list(cards)})
         for card in required_cards:
             true_holder = None
             for seat, hand in room.hands.items():
@@ -136,6 +141,7 @@ class GameEngine:
             "setId": set_id,
             "result": result_str,
             "awardedToTeam": awarded,
+            "holders": holders,
         }
         _append_history(room, "CLAIM", payload)
         if len(room.captured_sets["A"]) + len(room.captured_sets["B"]) == 9:

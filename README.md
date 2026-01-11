@@ -6,7 +6,7 @@ Made with "help" from OpenAI Codex.
 
 ## Features
 - Real-time WebSocket gameplay with lobby and room management
-- Team-based play with bots (strategic by default)
+- Team-based play with bots (strategic-forgetful by default)
 - Ask, claim, and disjoint mechanics
 - Chat and history panels
 
@@ -40,7 +40,7 @@ VITE_WS_URL=ws://127.0.0.1:8000/ws
 
 ## Environment Variables
 - `VITE_WS_URL` (frontend): WebSocket endpoint
-- `BOT_DEFAULT` (backend): `strategic_bot|memory_bot|random_bot` (default: `strategic_bot`)
+- `BOT_DEFAULT` (backend): `strategic_forgetful|strategic_bot|memory_bot|random_bot` (default: `strategic_forgetful`)
 
 ## Docs
 - Gameplay rules and protocol: `SPEC.md`

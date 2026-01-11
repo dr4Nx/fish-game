@@ -77,6 +77,17 @@ export function RoomView({ roomCode }: { roomCode: string }) {
         <RoomHeader
           roomCode={roomCode}
           onCopyRoomCode={handleCopyNotice}
+          headerAction={
+            publicState.phase === "FINISHED" ? (
+              privateState.yourSeat === publicState.hostSeat ? (
+                <button className="home-btn room-primary-btn" onClick={() => actions.resetRoom(roomCode)}>
+                  Return to lobby
+                </button>
+              ) : (
+                <div className="room-hint">Waiting for host to return to lobby.</div>
+              )
+            ) : null
+          }
         />
         {publicState.phase === "LOBBY" ? (
           <div className="room-grid">
@@ -99,18 +110,7 @@ export function RoomView({ roomCode }: { roomCode: string }) {
             <div
               className={`room-game-right${publicState.phase === "FINISHED" ? " room-game-right-finished" : ""}`}
             >
-              {publicState.phase === "FINISHED" ? (
-                <section className="room-card room-panel room-next-step">
-                  <h3>Next Step</h3>
-                  {privateState.yourSeat === publicState.hostSeat ? (
-                    <button className="home-btn room-primary-btn" onClick={() => actions.resetRoom(roomCode)}>
-                      Return to lobby
-                    </button>
-                  ) : (
-                    <div className="room-hint">Waiting for host to return to lobby.</div>
-                  )}
-                </section>
-              ) : (
+              {publicState.phase !== "FINISHED" && (
                 <RecentActionsPanel publicState={publicState} privateState={privateState} seatName={seatName} />
               )}
               <CapturedSetsPanel publicState={publicState} />

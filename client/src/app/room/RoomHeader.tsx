@@ -2,9 +2,10 @@ import { useAppState } from "../../state/store";
 type Props = {
   roomCode: string;
   onCopyRoomCode: () => void;
+  headerAction?: React.ReactNode;
 };
 
-export function RoomHeader({ roomCode, onCopyRoomCode }: Props) {
+export function RoomHeader({ roomCode, onCopyRoomCode, headerAction }: Props) {
   const { state, actions } = useAppState();
 
   const copyRoomCode = () => {
@@ -46,7 +47,7 @@ export function RoomHeader({ roomCode, onCopyRoomCode }: Props) {
           </div>
         )}
       </div>
-      <div className="room-top-actions" />
+      <div className="room-top-actions">{headerAction}</div>
     </header>
   );
 }
