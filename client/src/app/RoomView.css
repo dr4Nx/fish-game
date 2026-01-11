@@ -222,10 +222,12 @@ body,
 }
 
 .room-game-right-finished {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(130px, 1fr) minmax(240px, 2fr);
+  gap: 16px;
   align-items: stretch;
-  height: auto;
+  height: 100%;
+  min-height: 0;
 }
 
 .room-game-right-finished .room-card {
@@ -241,6 +243,10 @@ body,
   box-sizing: border-box;
 }
 
+.room-match-history {
+  min-height: 220px;
+}
+
 .room-panel {
   display: flex;
   flex-direction: column;
@@ -249,6 +255,8 @@ body,
 
 .room-next-step {
   width: 100%;
+  align-self: start;
+  height: fit-content;
 }
 
 .room-card-scroll {

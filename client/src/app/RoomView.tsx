@@ -9,6 +9,7 @@ import { JoinsDisconnectsPanel } from "./room/JoinsDisconnectsPanel";
 import { SettingsPanel } from "./room/SettingsPanel";
 import { PlayersPanel } from "./room/PlayersPanel";
 import { ClaimOverlay } from "./room/ClaimOverlay";
+import { MatchHistoryPanel } from "./room/MatchHistoryPanel";
 import { formatDisplayName } from "./nameUtils";
 import "./RoomView.css";
 
@@ -115,6 +116,9 @@ export function RoomView({ roomCode }: { roomCode: string }) {
                 <RecentActionsPanel publicState={publicState} privateState={privateState} seatName={seatName} />
               )}
               <CapturedSetsPanel publicState={publicState} />
+              {publicState.phase === "FINISHED" && (
+                <MatchHistoryPanel publicState={publicState} privateState={privateState} seatName={seatName} />
+              )}
             </div>
           </div>
         )}

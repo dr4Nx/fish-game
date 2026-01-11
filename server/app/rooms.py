@@ -7,6 +7,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .bots.memory_bot import MemoryBot
 from .bots.random_bot import RandomBot
+from .bots.strategic_bot import StrategicBot
 from .game.engine import GameEngine
 from .game.models import CardId, Phase, Room, Seat, SeatKind, SetId
 from .game import rules
@@ -252,7 +253,7 @@ class RoomRegistry:
             team_id = self._rng.choice(choices)
             team_counts[team_id] += 1
             seat.kind = SeatKind.BOT
-            seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
+            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
             seat.display_name = self._bot_display_name(room)
             seat.connected = False
             seat.player_key = None
@@ -291,7 +292,7 @@ class RoomRegistry:
         else:
             team_id = self._rng.choice(["A", "B"])
         seat.kind = SeatKind.BOT
-        seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
+        seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
         seat.display_name = self._bot_display_name(room)
         seat.connected = False
         seat.player_key = None
@@ -448,7 +449,10 @@ class RoomRegistry:
             raise AssertionError("INVALID_CARD")
         if not self._engine.legal_ask(room, seat_idx, target, card_id):
             raise AssertionError("ILLEGAL_ASK")
-        return self._engine.perform_ask(room, seat_idx, target, card_id)
+        result = self._engine.perform_ask(room, seat_idx, target, card_id)
+        self._advance_if_no_cards(room)
+        self._advance_if_no_asks(room)
+        return result
 
     def perform_claim(self, player_key: str, room_code: str, set_id: SetId, assignments: Dict[CardId, int]) -> Dict[str, str]:
         room = self._require_room(room_code)
@@ -459,6 +463,7 @@ class RoomRegistry:
             raise AssertionError("CLAIM_SET_ALREADY_CAPTURED")
         result = self._engine.perform_claim(room, seat_idx, set_id, assignments)
         self._advance_if_no_cards(room)
+        self._advance_if_no_asks(room)
         return result
 
     def perform_disjoint(self, player_key: str, room_code: str, target: int) -> Dict[str, object]:
@@ -477,6 +482,7 @@ class RoomRegistry:
             raise AssertionError("INVALID_DISJOINT")
         payload = self._perform_disjoint_by_seat(room, seat_idx, target)
         self._advance_if_no_cards(room)
+        self._advance_if_no_asks(room)
         return payload
 
     def perform_chat(self, player_key: str, room_code: str, message: str) -> None:
@@ -545,6 +551,43 @@ class RoomRegistry:
                 return
         # If no teammate has cards, keep current asker.
 
+    def _advance_if_no_asks(self, room: Room) -> None:
+        if room.phase != Phase.PLAYING:
+            return
+        current = room.current_asker
+        if current not in range(6):
+            return
+        if not room.hands.get(current):
+            return
+        team = self._team_for_seat(room, current)
+        opponents = [
+            seat
+            for seat, seat_team in room.team_of_seat.items()
+            if seat_team != team and room.seats[seat].kind != SeatKind.EMPTY
+        ]
+        eligible = []
+        for seat in opponents:
+            if not room.hands.get(seat):
+                continue
+            pair = (min(current, seat), max(current, seat))
+            if pair in room.disjoint_pairs:
+                continue
+            eligible.append(seat)
+        if eligible:
+            return
+        seats = sorted([seat for seat, seat_team in room.team_of_seat.items() if seat_team == team])
+        if not seats:
+            return
+        if current not in seats:
+            room.current_asker = seats[0]
+            return
+        start_idx = seats.index(current)
+        for offset in range(1, len(seats) + 1):
+            next_seat = seats[(start_idx + offset) % len(seats)]
+            if room.hands.get(next_seat):
+                room.current_asker = next_seat
+                return
+
     def disconnect(self, player_key: str, room_code: str) -> None:
         room = self._rooms.get(room_code)
         if not room:
@@ -572,6 +615,11 @@ class RoomRegistry:
                 if room.phase != Phase.PLAYING:
                     return
                 continue
+            if self._perform_auto_bot_disjoint(room):
+                await on_update(room.code)
+                if room.phase != Phase.PLAYING:
+                    return
+                continue
             current = room.current_asker
             seat = room.seats[current]
             if seat.kind != SeatKind.BOT:
@@ -584,9 +632,17 @@ class RoomRegistry:
             if action.get("type") == "action_ask":
                 if self._engine.legal_ask(room, current, action["targetSeat"], action["cardId"]):
                     self._engine.perform_ask(room, current, action["targetSeat"], action["cardId"])
+                    self._advance_if_no_cards(room)
+                    self._advance_if_no_asks(room)
                 else:
                     return
             else:
+                team_id = room.team_of_seat.get(current)
+                if team_id and self._force_guess_claim(room, public, team_id):
+                    await on_update(room.code)
+                    if room.phase != Phase.PLAYING:
+                        return
+                    continue
                 return
             await on_update(room.code)
             if room.phase != Phase.PLAYING:
@@ -657,7 +713,7 @@ class RoomRegistry:
         return {"yourSeat": seat_idx, "hand": hand, "yourTeam": team}
 
     def _fill_bots(self, room: Room, needed: Dict[str, int]) -> None:
-        default_bot = os.getenv("BOT_DEFAULT", "random_bot")
+        default_bot = os.getenv("BOT_DEFAULT", "strategic_bot")
         empty_seats = [seat for seat in room.seats if seat.kind == SeatKind.EMPTY]
         assignments = ["A"] * needed["A"] + ["B"] * needed["B"]
         if len(assignments) != len(empty_seats):
@@ -674,11 +730,13 @@ class RoomRegistry:
             room.team_of_seat[seat.index] = team_id
 
     def _build_bot(self, seat: Seat, room: Room):
-        bot_id = seat.bot_id or "random_bot"
+        bot_id = seat.bot_id or "strategic_bot"
         if bot_id == "memory_bot":
             bot = MemoryBot(seat.index, self._rng)
             bot.observe_history(room.history)
             return bot
+        if bot_id == "strategic_bot":
+            return StrategicBot(seat.index, self._rng)
         return RandomBot(seat.index, self._rng)
 
     def _bot_display_name(self, room: Room) -> str:
@@ -714,7 +772,7 @@ class RoomRegistry:
             )
         else:
             seat.kind = SeatKind.BOT
-            seat.bot_id = os.getenv("BOT_DEFAULT", "random_bot")
+            seat.bot_id = os.getenv("BOT_DEFAULT", "strategic_bot")
             seat.connected = False
             seat.player_key = None
             seat.display_name = self._bot_display_name(room)
@@ -750,9 +808,37 @@ class RoomRegistry:
         return message.strip()
 
     def _perform_auto_bot_claim(self, room: Room) -> bool:
+        public_state = self.build_public_state(room, "")
+        team_card_counts = {
+            "A": sum(len(room.hands.get(seat, [])) for seat, team in room.team_of_seat.items() if team == "A"),
+            "B": sum(len(room.hands.get(seat, [])) for seat, team in room.team_of_seat.items() if team == "B"),
+        }
+        forced_team: Optional[str] = None
+        if team_card_counts["A"] == 0 and team_card_counts["B"] > 0:
+            forced_team = "B"
+        elif team_card_counts["B"] == 0 and team_card_counts["A"] > 0:
+            forced_team = "A"
+
+        for seat in room.seats:
+            if seat.kind != SeatKind.BOT:
+                continue
+            if forced_team and room.team_of_seat.get(seat.index) != forced_team:
+                continue
+            hand = list(room.hands.get(seat.index, []))
+            bot = self._build_bot(seat, room)
+            if isinstance(bot, StrategicBot):
+                choice = bot.select_claim(public_state, hand)
+                if choice:
+                    set_id, assignments = choice
+                    self._engine.perform_claim(room, seat.index, set_id, assignments)
+                    self._advance_if_no_cards(room)
+                    self._advance_if_no_asks(room)
+                    return True
         captured = room.captured_sets["A"] + room.captured_sets["B"]
         for seat in room.seats:
             if seat.kind != SeatKind.BOT:
+                continue
+            if forced_team and room.team_of_seat.get(seat.index) != forced_team:
                 continue
             hand = room.hands.get(seat.index, [])
             for set_id, cards in rules.SET_CARDS.items():
@@ -761,7 +847,71 @@ class RoomRegistry:
                 if all(card in hand for card in cards):
                     assignments = {card: seat.index for card in cards}
                     self._engine.perform_claim(room, seat.index, set_id, assignments)
+                    self._advance_if_no_cards(room)
+                    self._advance_if_no_asks(room)
                     return True
+        if forced_team and self._force_guess_claim(room, public_state, forced_team):
+            return True
+        return False
+
+    def _force_guess_claim(
+        self, room: Room, public_state: Dict[str, Any], team_id: str
+    ) -> bool:
+        team_seats = [
+            seat for seat in room.seats if room.team_of_seat.get(seat.index) == team_id
+        ]
+        if not team_seats:
+            return False
+        has_human = any(seat.kind == SeatKind.HUMAN for seat in team_seats)
+        all_strategic = all(
+            seat.kind == SeatKind.BOT and (seat.bot_id or "strategic_bot") == "strategic_bot"
+            for seat in team_seats
+        )
+        if has_human or not all_strategic:
+            return False
+        last_seat = max(team_seats, key=lambda seat: seat.index)
+        bot = self._build_bot(last_seat, room)
+        if not isinstance(bot, StrategicBot):
+            return False
+        guess = bot.select_best_guess_claim(
+            public_state,
+            list(room.hands.get(last_seat.index, [])),
+        )
+        if not guess:
+            return False
+        set_id, assignments = guess
+        self._engine.perform_claim(room, last_seat.index, set_id, assignments)
+        self._advance_if_no_cards(room)
+        self._advance_if_no_asks(room)
+        return True
+
+    def _perform_auto_bot_disjoint(self, room: Room) -> bool:
+        public_state = self.build_public_state(room, "")
+        for seat in room.seats:
+            if seat.kind != SeatKind.BOT:
+                continue
+            hand = list(room.hands.get(seat.index, []))
+            bot = self._build_bot(seat, room)
+            if isinstance(bot, StrategicBot):
+                target = bot.select_disjoint_target(public_state, hand)
+                if target is None:
+                    continue
+                try:
+                    if target not in range(6) or room.seats[target].kind == SeatKind.EMPTY:
+                        continue
+                    if target == seat.index:
+                        continue
+                    if self._team_for_seat(room, seat.index) == self._team_for_seat(room, target):
+                        continue
+                    pair = (min(seat.index, target), max(seat.index, target))
+                    if pair in room.disjoint_pairs:
+                        continue
+                    self._perform_disjoint_by_seat(room, seat.index, target)
+                    self._advance_if_no_cards(room)
+                    self._advance_if_no_asks(room)
+                    return True
+                except AssertionError:
+                    continue
         return False
 
     def _require_room(self, room_code: str) -> Room:

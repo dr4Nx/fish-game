@@ -11,8 +11,8 @@ def _append_history(room: Room, kind: str, payload: Dict[str, object]) -> None:
     entry = history_mod.new_history_entry(room.next_history_id, kind, payload)
     room.next_history_id += 1
     room.history.append(entry)
-    if len(room.history) > 200:
-        room.history[:] = room.history[-200:]
+    if len(room.history) > 1000:
+        room.history[:] = room.history[-1000:]
 
 
 def _system(room: Room, message: str, data: Dict[str, object] | None = None) -> None:
