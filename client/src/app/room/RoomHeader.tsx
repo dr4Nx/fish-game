@@ -10,8 +10,6 @@ type Props = {
 
 export function RoomHeader({ roomCode, publicState, privateState, onCopyRoomCode }: Props) {
   const { state, actions } = useAppState();
-  const yourSeat = privateState.yourSeat;
-  const isHost = publicState.hostSeat === yourSeat;
 
   const copyRoomCode = () => {
     if (navigator.clipboard?.writeText) {

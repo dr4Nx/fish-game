@@ -19,10 +19,6 @@ export function SeatsPanel({ roomCode, publicState, privateState, nowMs }: Props
   };
   const isLobby = publicState.phase === "LOBBY";
   const isHost = publicState.hostSeat === privateState.yourSeat;
-  const unassignedHumans = publicState.seats.filter(
-    (seat) =>
-      seat.kind === "human" && !publicState.teams.A.includes(seat.seat) && !publicState.teams.B.includes(seat.seat)
-  );
   const canFillSingleBot = isLobby && isHost && (teamCounts.A < 3 || teamCounts.B < 3);
   const canKick = isHost && publicState.phase === "LOBBY";
 
