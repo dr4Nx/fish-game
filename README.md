@@ -42,5 +42,5 @@ VITE_WS_URL=ws://127.0.0.1:8000/ws
 - `VITE_WS_URL` (frontend): WebSocket endpoint
 - `BOT_DEFAULT` (backend): `strategic_forgetful|strategic_bot|memory_bot|random_bot` (default: `strategic_forgetful`)
 
-## Docs
-- Gameplay rules and protocol: `SPEC.md`
+## Rules
+Rules can be found on the rules page on the website.
