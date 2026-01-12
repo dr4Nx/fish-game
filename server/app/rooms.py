@@ -359,6 +359,8 @@ class RoomRegistry:
         if seat.kind == SeatKind.EMPTY:
             raise AssertionError("INVALID_TARGET")
         kicked_player_key = seat.player_key or seat.reserved_player_key
+        if kicked_player_key:
+            room.claim_lock_players.discard(kicked_player_key)
         display_name = seat.display_name
         seat.kind = SeatKind.EMPTY
         seat.connected = False
@@ -422,6 +424,7 @@ class RoomRegistry:
             team_counts[team_id] += 1
         if team_counts["A"] != 3 or team_counts["B"] != 3:
             raise AssertionError("PHASE_INVALID")
+        room.claim_lock_players.clear()
         self._engine.start_game(room)
 
     def leave_room(self, player_key: str, room_code: str) -> None:
@@ -429,6 +432,7 @@ class RoomRegistry:
         if room.phase not in (Phase.LOBBY, Phase.FINISHED):
             raise AssertionError("PHASE_INVALID")
         seat_idx = self._require_seat(room, player_key)
+        room.claim_lock_players.discard(player_key)
         seat = room.seats[seat_idx]
         display_name = seat.display_name
         seat.kind = SeatKind.EMPTY
@@ -472,6 +476,7 @@ class RoomRegistry:
         room.current_asker = -1
         room.disjoint_pairs = set()
         room.captured_sets = {"A": [], "B": []}
+        room.claim_lock_players.clear()
         self._append_history(room, "SYSTEM", history_mod.system_payload("Room reset to lobby", {}))
 
     def perform_ask(self, player_key: str, room_code: str, target: int, card_id: CardId) -> str:
@@ -479,6 +484,8 @@ class RoomRegistry:
         seat_idx = self._require_seat(room, player_key)
         if room.phase != Phase.PLAYING:
             raise AssertionError("PHASE_INVALID")
+        if room.claim_lock_players:
+            raise AssertionError("CLAIM_LOCKED")
         if seat_idx != room.current_asker:
             raise AssertionError("NOT_YOUR_TURN")
         if target not in range(6) or room.seats[target].kind == SeatKind.EMPTY:
@@ -500,15 +507,30 @@ class RoomRegistry:
         if set_id in room.captured_sets["A"] or set_id in room.captured_sets["B"]:
             raise AssertionError("CLAIM_SET_ALREADY_CAPTURED")
         result = self._engine.perform_claim(room, seat_idx, set_id, assignments)
+        room.claim_lock_players.discard(player_key)
+        if room.phase == Phase.FINISHED:
+            room.claim_lock_players.clear()
         self._advance_if_no_cards(room)
         self._advance_if_no_asks(room)
         return result
+
+    def set_claim_focus(self, player_key: str, room_code: str, active: bool) -> None:
+        room = self._require_room(room_code)
+        if room.phase != Phase.PLAYING:
+            raise AssertionError("PHASE_INVALID")
+        self._require_seat(room, player_key)
+        if active:
+            room.claim_lock_players.add(player_key)
+        else:
+            room.claim_lock_players.discard(player_key)
 
     def perform_disjoint(self, player_key: str, room_code: str, target: int) -> Dict[str, object]:
         room = self._require_room(room_code)
         seat_idx = self._require_seat(room, player_key)
         if room.phase != Phase.PLAYING:
             raise AssertionError("PHASE_INVALID")
+        if room.claim_lock_players:
+            raise AssertionError("CLAIM_LOCKED")
         if target not in range(6) or room.seats[target].kind == SeatKind.EMPTY:
             raise AssertionError("INVALID_TARGET")
         if seat_idx == target:
@@ -565,6 +587,7 @@ class RoomRegistry:
                     "SYSTEM",
                     history_mod.system_payload("Game finished and winning team announced", {"winner": winning}),
                 )
+                room.claim_lock_players.clear()
         pair = (min(asker, target), max(asker, target))
         room.disjoint_pairs.add(pair)
         payload: Dict[str, object] = {
@@ -644,6 +667,7 @@ class RoomRegistry:
         seat_idx = self._find_seat_for_player(room, player_key)
         if seat_idx is None:
             return
+        room.claim_lock_players.discard(player_key)
         seat = room.seats[seat_idx]
         seat.connected = False
         self._append_history(
@@ -665,6 +689,8 @@ class RoomRegistry:
                 await on_update(room.code)
                 if room.phase != Phase.PLAYING:
                     return
+                continue
+            if room.claim_lock_players:
                 continue
             if self._perform_auto_bot_disjoint(room):
                 await on_update(room.code)
@@ -705,6 +731,13 @@ class RoomRegistry:
                 teams[team].append(seat_idx)
             teams["A"].sort()
             teams["B"].sort()
+        claim_lock_seats = []
+        if room.claim_lock_players:
+            for player_key in room.claim_lock_players:
+                seat_idx = self._find_seat_for_player(room, player_key)
+                if seat_idx is not None:
+                    claim_lock_seats.append(seat_idx)
+            claim_lock_seats = sorted(set(claim_lock_seats))
         public_seats: List[Dict[str, Any]] = []
         for seat in room.seats:
             show_key = viewer_key and seat.player_key == viewer_key
@@ -727,6 +760,8 @@ class RoomRegistry:
             "teams": teams,
             "hostSeat": room.host_seat if room.host_seat is not None else -1,
             "currentAskerSeat": room.current_asker if room.phase in (Phase.PLAYING, Phase.FINISHED) else -1,
+            "claimLock": bool(room.claim_lock_players),
+            "claimLockSeats": claim_lock_seats,
             "disjointPairs": disjoint_pairs,
             "handCounts": hand_counts,
             "capturedSets": captured,
@@ -811,6 +846,7 @@ class RoomRegistry:
             return
         if seat.reserved_player_key != player_key:
             return
+        room.claim_lock_players.discard(player_key)
         display_name = seat.display_name
         if room.phase == Phase.LOBBY:
             seat.kind = SeatKind.EMPTY

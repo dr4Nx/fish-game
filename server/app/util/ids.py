@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 import string
 
 BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -25,4 +26,6 @@ def is_valid_display_name(name: str) -> bool:
     if not isinstance(name, str):
         return False
     name = normalize_display_name(name)
-    return 1 <= len(name) <= 20
+    if not 1 <= len(name) <= 20:
+        return False
+    return re.fullmatch(r"[A-Za-z0-9.-]+", name) is not None

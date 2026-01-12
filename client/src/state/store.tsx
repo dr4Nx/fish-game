@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { getDisplayName, getPlayerKey, setDisplayName as persistDisplayName } from "./identity";
 import { WsClient } from "../ws/client";
-import { getRandomName } from "../app/nameUtils";
+import { getRandomName, sanitizeDisplayName } from "../app/nameUtils";
 import type {
   ClientMessage,
   ErrorMessage,
@@ -53,6 +53,7 @@ export type AppActions = {
   ask: (roomCode: string, targetSeat: number, cardId: string) => void;
   disjoint: (roomCode: string, targetSeat: number) => void;
   claim: (roomCode: string, setId: string, assignments: Record<string, number>) => void;
+  claimFocus: (roomCode: string, active: boolean) => void;
   leaveRoom: () => void;
   clearError: () => void;
 };
@@ -136,7 +137,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           window.clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
         }
-        let name = displayName.trim();
+        let name = sanitizeDisplayName(displayName);
         if (!name) {
           const hash = window.location.hash.replace("#", "");
           if (hash.startsWith("/room/")) {
@@ -146,6 +147,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } else {
             name = `Player-${playerKey.slice(0, 4)}`;
           }
+        }
+        if (name && name !== displayName) {
+          setDisplayName(name);
+          persistDisplayName(name);
         }
         const hello: ClientMessage = {
           type: "hello",
@@ -171,7 +176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createRoom = useCallback(() => {
     setLastExitedRoom(null);
-    const name = displayName.trim();
+    const name = sanitizeDisplayName(displayName);
     if (name) {
       send({ type: "set_name", requestId: newRequestId(), displayName: name });
     }
@@ -190,7 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setLastExitedRoom(null);
-      const name = displayName.trim();
+      const name = sanitizeDisplayName(displayName);
       if (name) {
         send({ type: "set_name", requestId: newRequestId(), displayName: name });
       }
@@ -201,9 +206,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setName = useCallback(
     (name: string) => {
-      setDisplayName(name);
-      persistDisplayName(name);
-      send({ type: "set_name", requestId: newRequestId(), displayName: name });
+      const cleaned = sanitizeDisplayName(name);
+      setDisplayName(cleaned);
+      persistDisplayName(cleaned);
+      if (cleaned) {
+        send({ type: "set_name", requestId: newRequestId(), displayName: cleaned });
+      }
     },
     [send]
   );
@@ -317,6 +325,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [send]
   );
 
+  const claimFocus = useCallback(
+    (code: string, active: boolean) => {
+      send({ type: "claim_focus", requestId: newRequestId(), roomCode: code, active });
+    },
+    [send]
+  );
+
   const clearError = useCallback(() => {
     setLastError(null);
   }, []);
@@ -365,6 +380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ask,
     disjoint,
     claim,
+    claimFocus,
     leaveRoom,
     clearError,
   };

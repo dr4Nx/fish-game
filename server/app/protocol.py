@@ -58,6 +58,11 @@ CLIENT_SCHEMAS: Dict[str, Dict[str, str]] = {
         "roomCode": "string",
         "targetSeat": "int",
     },
+    "claim_focus": {
+        "requestId": "string",
+        "roomCode": "string",
+        "active": "bool",
+    },
     "chat": {
         "requestId": "string",
         "roomCode": "string",

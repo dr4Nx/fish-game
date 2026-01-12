@@ -188,6 +188,13 @@ async def ws_endpoint(ws: WebSocket) -> None:
                         raise AssertionError("NOT_IN_ROOM")
                     _registry.perform_chat(player_key, room_code, msg["message"])
                     await handle_room_update(room_code)
+                elif msg_type == "claim_focus":
+                    room_code = msg["roomCode"]
+                    room_code_opt = room_code
+                    if _connections.get(room_code, {}).get(player_key) != ws:
+                        raise AssertionError("NOT_IN_ROOM")
+                    _registry.set_claim_focus(player_key, room_code, msg["active"])
+                    await handle_room_update(room_code)
                 elif msg_type == "list_lobbies":
                     await send_lobby_list(ws)
                 elif msg_type == "update_settings":

@@ -45,6 +45,7 @@ class Room:
     history_length: int = 3
     bot_delay_ms: int = 5000
     bot_forgetfulness: int = 7
+    claim_lock_players: Set[str] = field(default_factory=set)
     team_of_seat: Dict[int, TeamId] = field(default_factory=dict)
     team_draw_cards: Dict[int, CardId] = field(default_factory=dict)
     hands: Dict[int, List[CardId]] = field(default_factory=dict)

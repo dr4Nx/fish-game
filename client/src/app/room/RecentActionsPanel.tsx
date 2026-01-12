@@ -79,19 +79,6 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
     )
     .map(({ entry }) => entry);
 
-  const askOrder = (() => {
-    const order = new Map<string, number>();
-    let count = 0;
-    for (let i = lastFinishIndex + 1; i < publicState.history.length; i += 1) {
-      const entry = publicState.history[i];
-      if (entry.kind === "ASK") {
-        count += 1;
-        order.set(entry.id, count);
-      }
-    }
-    return order;
-  })();
-
   const recentLines = recentActions
     .filter(
       (entry) => entry.kind === "ASK" || entry.kind === "CLAIM" || entry.kind === "DISJOINT"
@@ -104,10 +91,15 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         const toSeat = payload.toSeat as number;
         const cardId = payload.cardId as string;
         const result = payload.result as string;
-        const askCount = askOrder.get(entry.id);
+        const resultLabel = result === "HIT" ? "Hit" : "Miss";
         return (
-          <div key={`${entry.id}-ask-${idx}`} className="past-turn-line">
-            [{askCount ?? "-"}] {renderName(fromSeat)} asked {renderName(toSeat)} for {renderCard(cardId)} ({result}).
+          <div key={`${entry.id}-ask-${idx}`} className="past-turn-entry">
+            <div className="past-turn-line">
+              {renderName(fromSeat)} asked {renderName(toSeat)}
+            </div>
+            <div className="past-turn-line">
+              {renderCard(cardId)} - <span className="past-result">{resultLabel}</span>
+            </div>
           </div>
         );
       }
@@ -119,7 +111,7 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         const holders = (payload.holders as Array<{ seat: number; cards: string[] }>) ?? [];
         const awardedLabel = awarded === "A" ? "Alpha" : awarded === "B" ? "Beta" : awarded;
         return (
-          <div key={`${entry.id}-claim-${idx}`}>
+          <div key={`${entry.id}-claim-${idx}`} className="past-turn-entry">
             <div className="past-turn-line">
               {renderName(fromSeat)} claimed <span className="past-set">{setLabel(setId)}</span> ({result}), awarded to
               Team {awardedLabel}.
@@ -151,7 +143,8 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
         const awardedLabel = awarded === "A" ? "Alpha" : awarded === "B" ? "Beta" : awarded;
         if (result === "INCORRECT" && transferredSets.length > 0) {
           return (
-            <div key={`${entry.id}-disjoint-${idx}`} className="past-turn-line">
+            <div key={`${entry.id}-disjoint-${idx}`} className="past-turn-entry">
+              <div className="past-turn-line">
               {renderName(fromSeat)} called disjoint with {renderName(toSeat)} ({result}). Transferred:{" "}
               {awardedLabel ? `Team ${awardedLabel}: ` : ""}
               {transferredSets.map((setId, setIdx) => (
@@ -161,18 +154,21 @@ export function RecentActionsPanel({ publicState, privateState, seatName }: Prop
                 </span>
               ))}
               .
+              </div>
             </div>
           );
         }
         return (
-          <div key={`${entry.id}-disjoint-${idx}`} className="past-turn-line">
-            {renderName(fromSeat)} called disjoint with {renderName(toSeat)} ({result}).
+          <div key={`${entry.id}-disjoint-${idx}`} className="past-turn-entry">
+            <div className="past-turn-line">
+              {renderName(fromSeat)} called disjoint with {renderName(toSeat)} ({result}).
+            </div>
           </div>
         );
       }
       return (
-        <div key={`${entry.id}-unknown-${idx}`} className="past-turn-line">
-          Unknown action.
+        <div key={`${entry.id}-unknown-${idx}`} className="past-turn-entry">
+          <div className="past-turn-line">Unknown action.</div>
         </div>
       );
     });

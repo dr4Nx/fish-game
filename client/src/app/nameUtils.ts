@@ -7,8 +7,13 @@ export const getRandomName = () =>
     Math.random() * 10
   )}`;
 
+export const sanitizeDisplayName = (name: string) => {
+  const cleaned = name.replace(/[^A-Za-z0-9.-]/g, "");
+  return cleaned.slice(0, MAX_NAME_LENGTH);
+};
+
 export const formatDisplayName = (name?: string | null) => {
-  const trimmed = (name ?? "").trim();
-  const base = trimmed.length > 0 ? trimmed : "Player";
+  const cleaned = sanitizeDisplayName((name ?? "").trim());
+  const base = cleaned.length > 0 ? cleaned : "Player";
   return base.length > MAX_NAME_LENGTH ? base.slice(0, MAX_NAME_LENGTH) : base;
 };

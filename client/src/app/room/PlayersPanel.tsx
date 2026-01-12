@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "../../state/store";
 import { SETS } from "./constants";
 import type { RoomPrivateState, RoomPublicState } from "./types";
@@ -20,6 +20,12 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
   const isYourTurn = isPlaying && publicState.currentAskerSeat === yourSeat;
   const isFinished = publicState.phase === "FINISHED";
   const [askSeat, setAskSeat] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (publicState.claimLock && askSeat !== null) {
+      setAskSeat(null);
+    }
+  }, [askSeat, publicState.claimLock]);
 
   const disjointPairKeys = useMemo(
     () =>
@@ -121,6 +127,7 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
             const cardCount = publicState.handCounts[String(seat.seat)] ?? 0;
             const pairKey = `${Math.min(seat.seat, yourSeat)}-${Math.max(seat.seat, yourSeat)}`;
             const isDisjoint = disjointPairKeys.has(pairKey);
+            const isClaiming = publicState.claimLockSeats?.includes(seat.seat);
             const disjointWith = publicState.disjointPairs
               .filter((pair) => pair.a === seat.seat || pair.b === seat.seat)
               .map((pair) => (pair.a === seat.seat ? pair.b : pair.a))
@@ -130,10 +137,16 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
               seat.seat !== yourSeat &&
               isOpponent &&
               !isDisjoint &&
+              !publicState.claimLock &&
               publicState.currentAskerSeat === yourSeat &&
               cardCount > 0 &&
               legalAskCards.length > 0;
-            const canDisjoint = isPlaying && seat.seat !== yourSeat && isOpponent && !isDisjoint;
+            const canDisjoint =
+              isPlaying &&
+              seat.seat !== yourSeat &&
+              isOpponent &&
+              !isDisjoint &&
+              !publicState.claimLock;
             const finishedTeamClass =
               publicState.phase === "FINISHED"
                 ? team === "A"
@@ -167,6 +180,7 @@ export function PlayersPanel({ roomCode, publicState, privateState, nowMs }: Pro
                   <div className={`player-name ${seat.kind === "human" && !seat.connected ? "player-name-offline" : ""}`}>
                     {isHost ? "👑 " : ""}
                     {displayName}
+                    {isClaiming && <span className="player-claiming">Claiming</span>}
                     {seat.kind === "human" && !seat.connected && (
                       <span className="player-disconnect-timer">({disconnectCountdown(seat.seat)}s)</span>
                     )}

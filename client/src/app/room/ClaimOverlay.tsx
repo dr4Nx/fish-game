@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "../../state/store";
 import { SETS } from "./constants";
 import { getCardDisplay, setLabel } from "./cardUtils";
@@ -19,6 +19,17 @@ export function ClaimOverlay({ roomCode, publicState, privateState }: Props) {
   const [assignments, setAssignments] = useState<Record<string, number>>({});
   const yourTeam = privateState.yourTeam;
   const isPlaying = publicState.phase === "PLAYING";
+  const claimFocus = actions.claimFocus;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    claimFocus(roomCode, true);
+    return () => {
+      claimFocus(roomCode, false);
+    };
+  }, [claimFocus, open, roomCode]);
 
   const captured = useMemo(
     () => new Set([...publicState.capturedSets.A, ...publicState.capturedSets.B]),

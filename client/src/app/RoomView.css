@@ -199,7 +199,7 @@ body,
 .room-game {
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   align-items: start;
   flex: 1;
   min-height: 0;
@@ -443,6 +443,15 @@ body,
   font-weight: 600;
 }
 
+.player-claiming {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .player-name-offline {
   color: #b91c1c;
 }
@@ -566,12 +575,30 @@ body,
 }
 
 .past-turn-line {
-  margin-top: 6px;
+  margin-top: 4px;
   line-height: 1.4;
-  font-size: 14px;
+  font-size: 15px;
+}
+
+.past-turn-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.past-turn-entry:first-child {
+  padding-top: 0;
+}
+
+.past-turn-entry:last-child {
+  border-bottom: none;
 }
 
 .past-card {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.past-result {
   font-weight: 700;
 }
 
@@ -593,7 +620,7 @@ body,
 }
 
 .past-claim-holders {
-  font-size: 13px;
+  font-size: 14px;
   color: #334155;
 }
 
@@ -669,7 +696,7 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   color: #0f172a;
 }
 

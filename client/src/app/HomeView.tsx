@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "../state/store";
-import { formatDisplayName, getRandomName } from "./nameUtils";
+import { formatDisplayName, getRandomName, sanitizeDisplayName } from "./nameUtils";
 import "./HomeView.css";
 
 const statusConfig = {
@@ -112,7 +112,7 @@ export function HomeView() {
               className="home-input"
               value={nameInput}
               maxLength={20}
-              onChange={(e) => setNameInput(e.target.value)}
+              onChange={(e) => setNameInput(sanitizeDisplayName(e.target.value))}
               placeholder="e.g., BlueUnicorn5"
               style={{
                 marginTop: 8,
@@ -148,8 +148,8 @@ export function HomeView() {
               <button
                 className="home-btn"
                 onClick={() => {
-                  const trimmed = nameInput.trim();
-                  const finalName = trimmed || getRandomName();
+                  const cleaned = sanitizeDisplayName(nameInput);
+                  const finalName = cleaned || getRandomName();
                   setNameInput(finalName);
                   actions.setName(finalName);
                   actions.clearError();

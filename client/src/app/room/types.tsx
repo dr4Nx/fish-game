@@ -13,6 +13,8 @@ export type RoomPublicState = {
   teams: { A: number[]; B: number[] };
   hostSeat: number;
   currentAskerSeat: number;
+  claimLock: boolean;
+  claimLockSeats: number[];
   disjointPairs: Array<{ a: number; b: number }>;
   handCounts: Record<string, number>;
   capturedSets: { A: string[]; B: string[] };

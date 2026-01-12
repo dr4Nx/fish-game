@@ -79,6 +79,7 @@ export function RulesView() {
             <li>Claims must assign all 6 cards in the set to teammate seats.</li>
             <li>Correct: set awarded to claimant team. Incorrect: set awarded to opposing team.</li>
             <li>Claimed cards are removed from hands. Claims do not change whose turn it is.</li>
+            <li>While any player has the claim menu open, asking and disjoint are temporarily locked.</li>
             <li>
               A correct claim requires both: all 6 cards are on your team, and every assigned seat matches the true
               holder.
